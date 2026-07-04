@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const COZE_API_URL = 'https://api.coze.cn/v3/chat';
-const BOT_ID = '7657072060547989538';
+const BOT_ID = '7658589656686510099';
 const PAT_TOKEN = 'pat_x0aBiUYPnd5Jk1LtA7KmVOolzy8T3tXnT0rXp8EdiN2eOKe6rwEQoOBrBiFcITv9';
 
 export async function POST(request: NextRequest) {

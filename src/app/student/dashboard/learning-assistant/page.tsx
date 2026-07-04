@@ -44,7 +44,7 @@ export default function LearningAssistantPage() {
       const client = new CozeWebSDK.WebChatClient({
         config: {
           type: 'bot',
-          bot_id: '7657072060547989538',
+          bot_id: '7658589656686510099',
           botInfo: {
             parameters: {
               id_number: studentId
