@@ -5,7 +5,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABAS
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 const COZE_API_BASE = 'https://api.coze.cn';
-const WORKFLOW_ID = '7657555437513179187';
+const WORKFLOW_ID = '7658601073989648424';
 const CLIENT_ID = process.env.OAUTH_CLIENT_ID || '';
 const PRIVATE_KEY = (process.env.OAUTH_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 const PUBLIC_KEY_ID = process.env.OAUTH_PUBLIC_KEY_ID || '';

@@ -3,9 +3,9 @@ import jwt from 'jsonwebtoken';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 const COZE_API_BASE = 'https://api.coze.cn';
-const WORKFLOW_ID_TEACHER = '7657200672664682548';
-const WORKFLOW_ID_CLASS = '7657939219155337225';
-const WORKFLOW_ID_PERSONAL = '7657927738251264027';
+const WORKFLOW_ID_TEACHER = '7658600969215868969';
+const WORKFLOW_ID_CLASS = '7658600301940015139';
+const WORKFLOW_ID_PERSONAL = '7658601037494517803';
 const CLIENT_ID = process.env.OAUTH_CLIENT_ID || '';
 const PRIVATE_KEY = (process.env.OAUTH_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 const PUBLIC_KEY_ID = process.env.OAUTH_PUBLIC_KEY_ID || '';

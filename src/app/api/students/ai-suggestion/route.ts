@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 
 const COZE_API_BASE = 'https://api.coze.cn';
-const WORKFLOW_ID = '7657546910882283526';
+const WORKFLOW_ID = '7658601128179204136';
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const PRIVATE_KEY = (process.env.OAUTH_PRIVATE_KEY || '').replace(/\\n/g, '\n');
@@ -109,10 +109,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine which workflow to use
-    // assignment_id provided: workflow 7657555437513179187 (content only, specific assignment wrong answers)
-    // no assignment_id: workflow 7657546910882283526 (id_number + content, all wrong answers)
-    const ASSIGNMENT_WORKFLOW_ID = '7657555437513179187';
-    const STUDENT_WORKFLOW_ID = '7657546910882283526';
+    // assignment_id provided: workflow 7658601073989648424 (content only, specific assignment wrong answers)
+    // no assignment_id: workflow 7658601128179204136 (id_number + content, all wrong answers)
+    const ASSIGNMENT_WORKFLOW_ID = '7658601073989648424';
+    const STUDENT_WORKFLOW_ID = '7658601128179204136';
     const workflowId = assignment_id ? ASSIGNMENT_WORKFLOW_ID : STUDENT_WORKFLOW_ID;
 
     // Build content parameter - if not provided, fetch wrong answers from the student

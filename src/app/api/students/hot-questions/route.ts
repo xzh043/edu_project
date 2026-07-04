@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 
 const COZE_API_BASE = 'https://api.coze.cn';
-const WORKFLOW_ID = '7657465645978877994';
+const WORKFLOW_ID = '7658601170658721818';
 const CLIENT_ID = process.env.OAUTH_CLIENT_ID || '';
 const PRIVATE_KEY = (process.env.OAUTH_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 const PUBLIC_KEY_ID = process.env.OAUTH_PUBLIC_KEY_ID || '';

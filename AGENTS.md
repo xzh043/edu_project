@@ -183,9 +183,9 @@
 ### 工作流列表
 | Workflow ID | 用途 | 参数 | 调用方 |
 |---|---|---|---|
-| `7657546910882283526` | 学生整体AI学习建议 | id_number(学号), content(错题记录) | 学生详情页 |
-| `7657555437513179187` | 作业/任务维度AI建议 | content(错题记录) | 作业详情页、学生任务结果页 |
-| `7657465645978877994` | 知识点提问分布 | id_number, class, type, chapter | 学生详情(热点提问)、数据分析(章节分布) |
+| `7658601128179204136` | 学生整体AI学习建议 | id_number(学号), content(错题记录) | 学生详情页 |
+| `7658601073989648424` | 作业/任务维度AI建议 | content(错题记录) | 作业详情页、学生任务结果页 |
+| `7658601170658721818` | 知识点提问分布 | id_number, class, type, chapter | 学生详情(热点提问)、数据分析(章节分布) |
 
 ### AI建议存储
 - `ai_suggestions` 表：student_id, student_number, content, assignment_id(nullable), created_at
