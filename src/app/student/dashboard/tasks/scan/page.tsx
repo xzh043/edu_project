@@ -286,23 +286,29 @@ export default function ScanPage() {
 
         {/* 扫描框引导遮罩 */}
         {scanning && (
-          <div className="pointer-events-none absolute inset-0 z-10">
-            {/* 半透明遮罩，中间镂空 */}
-            <div className="absolute inset-0 bg-black/50" />
-            {/* 镂空区域 - 居中 */}
-            <div className="absolute left-1/2 top-1/2 h-60 w-60 -translate-x-1/2 -translate-y-1/2">
-              {/* 用白色边框做出镂空效果 */}
-              <div className="absolute inset-0 rounded-xl border-[3px] border-white/90 shadow-[0_0_0_1000px_rgba(0,0,0,0.5)]" />
-              {/* 四个角 */}
-              <div className="absolute -left-1 -top-1 h-8 w-8 border-l-4 border-t-4 border-[#3b82f6] rounded-tl-lg" />
-              <div className="absolute -right-1 -top-1 h-8 w-8 border-r-4 border-t-4 border-[#3b82f6] rounded-tr-lg" />
-              <div className="absolute -bottom-1 -left-1 h-8 w-8 border-l-4 border-b-4 border-[#3b82f6] rounded-bl-lg" />
-              <div className="absolute -bottom-1 -right-1 h-8 w-8 border-r-4 border-b-4 border-[#3b82f6] rounded-br-lg" />
-              {/* 扫描线动画 */}
-              <div className="absolute left-2 right-2 top-1/2 h-0.5 bg-gradient-to-r from-transparent via-[#3b82f6] to-transparent shadow-[0_0_8px_#3b82f6] animate-[scan_2s_ease-in-out_infinite]" />
+          <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
+            {/* 遮罩 - 用5个矩形拼出中间镂空效果 */}
+            <div className="absolute inset-0 flex flex-col">
+              <div className="w-full flex-1 bg-black/60" />
+              <div className="flex w-full justify-center">
+                <div className="flex-1 bg-black/60" />
+                <div className="h-60 w-60 flex-shrink-0" />
+                <div className="flex-1 bg-black/60" />
+              </div>
+              <div className="w-full flex-1 bg-black/60" />
             </div>
-            {/* 提示文字 */}
-            <p className="absolute bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-center text-sm text-white/90">
+            {/* 扫描框 */}
+            <div className="relative h-60 w-60 flex-shrink-0">
+              {/* 四个角 */}
+              <div className="absolute -top-0.5 -left-0.5 h-7 w-7 border-l-4 border-t-4 border-[#3b82f6] rounded-tl-lg" />
+              <div className="absolute -top-0.5 -right-0.5 h-7 w-7 border-r-4 border-t-4 border-[#3b82f6] rounded-tr-lg" />
+              <div className="absolute -bottom-0.5 -left-0.5 h-7 w-7 border-l-4 border-b-4 border-[#3b82f6] rounded-bl-lg" />
+              <div className="absolute -bottom-0.5 -right-0.5 h-7 w-7 border-r-4 border-b-4 border-[#3b82f6] rounded-br-lg" />
+              {/* 扫描线动画 */}
+              <div className="absolute inset-x-2 top-1/2 h-0.5 bg-gradient-to-r from-transparent via-[#3b82f6] to-transparent shadow-[0_0_8px_#3b82f6]" style={{ animation: 'scanLine 2s ease-in-out infinite' }} />
+            </div>
+            {/* 提示文字 - 相对定位在扫描框下方 */}
+            <p className="mt-8 whitespace-nowrap text-center text-sm text-white/90">
               将作业二维码对准框内即可自动识别
             </p>
           </div>
@@ -380,9 +386,9 @@ export default function ScanPage() {
 
       {/* 扫描线动画 keyframes */}
       <style jsx>{`
-        @keyframes scan {
-          0%, 100% { transform: translateY(-80px); }
-          50% { transform: translateY(80px); }
+        @keyframes scanLine {
+          0%, 100% { transform: translateY(-100px); }
+          50% { transform: translateY(100px); }
         }
       `}</style>
     </div>
