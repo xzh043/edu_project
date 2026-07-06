@@ -3,133 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Scan, CameraOff, Loader2, Image as ImageIcon, RefreshCw } from 'lucide-react';
+import jsQR from 'jsqr';
 
 const QRCodePattern = /\/student\/dashboard\/tasks\/([^/?#]+)/;
-
-class SimpleQRCodeDecoder {
-  decode(imageData: ImageData): string | null {
-    try {
-      const width = imageData.width;
-      const height = imageData.height;
-      const data = imageData.data;
-
-      const getPixel = (x: number, y: number): number => {
-        if (x < 0 || x >= width || y < 0 || y >= height) return 255;
-        const idx = (y * width + x) * 4;
-        return (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-      };
-
-      // 查找二维码的三个定位标记（左上、右上、左下）
-      const findFinderPattern = (): { x: number; y: number; size: number } | null => {
-        for (let y = 0; y < height - 20; y += 3) {
-          for (let x = 0; x < width - 20; x += 3) {
-            const p = getPixel(x, y);
-            if (p < 100) {
-              // 测量黑色区域宽度
-              let size = 1;
-              while (size < 60 && getPixel(x + size, y) < 100) size++;
-              if (size >= 7 && size <= 50) {
-                // 验证是否是定位标记（7:7:7:7 比例）
-                if (this.checkFinderPattern(x, y, size, getPixel)) {
-                  return { x, y, size };
-                }
-              }
-            }
-          }
-        }
-        return null;
-      };
-
-      const pattern = findFinderPattern();
-      if (!pattern) return null;
-
-      const moduleSize = pattern.size / 7;
-      const startX = Math.floor(pattern.x + moduleSize * 4);
-      const startY = Math.floor(pattern.y + moduleSize * 4);
-
-      // 采样二维码数据区域
-      const bits: boolean[] = [];
-      const gridSize = 25;
-      for (let y = 0; y < gridSize; y++) {
-        const py = Math.floor(startY + y * moduleSize);
-        for (let x = 0; x < gridSize; x++) {
-          const px = Math.floor(startX + x * moduleSize);
-          const brightness = getPixel(px, py);
-          bits.push(brightness < 128);
-        }
-      }
-
-      const text = this.decodeBits(bits);
-      if (text && QRCodePattern.test(text)) {
-        return text;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
-  }
-
-  private checkFinderPattern(x: number, y: number, size: number, getPixel: (x: number, y: number) => number): boolean {
-    // 定位标记：黑-白-黑-白-黑 = 1:1:3:1:1 比例
-    const unit = size / 7;
-    const checks = [
-      { dx: 0, dy: 0, expect: true },
-      { dx: unit, dy: 0, expect: false },
-      { dx: 2 * unit, dy: 0, expect: true },
-      { dx: 3 * unit, dy: 0, expect: true },
-      { dx: 4 * unit, dy: 0, expect: true },
-      { dx: 5 * unit, dy: 0, expect: false },
-      { dx: 6 * unit, dy: 0, expect: true },
-      { dx: 0, dy: unit, expect: false },
-      { dx: 6 * unit, dy: unit, expect: false },
-      { dx: 0, dy: 6 * unit, expect: true },
-      { dx: 6 * unit, dy: 6 * unit, expect: true },
-      { dx: 3 * unit, dy: 3 * unit, expect: true },
-    ];
-    for (const c of checks) {
-      const px = Math.floor(x + c.dx);
-      const py = Math.floor(y + c.dy);
-      const isDark = getPixel(px, py) < 128;
-      if (isDark !== c.expect) return false;
-    }
-    return true;
-  }
-
-  private decodeBits(bits: boolean[]): string {
-    const byteArray: number[] = [];
-    let currentByte = 0;
-    let bitCount = 0;
-
-    for (let i = 0; i < bits.length; i++) {
-      if (this.isDataBit(i)) {
-        currentByte = (currentByte << 1) | (bits[i] ? 1 : 0);
-        bitCount++;
-        if (bitCount === 8) {
-          byteArray.push(currentByte);
-          currentByte = 0;
-          bitCount = 0;
-        }
-      }
-    }
-
-    try {
-      const decoder = new TextDecoder('UTF-8');
-      return decoder.decode(new Uint8Array(byteArray));
-    } catch {
-      return '';
-    }
-  }
-
-  private isDataBit(index: number): boolean {
-    const x = index % 25;
-    const y = Math.floor(index / 25);
-    if (x < 9 && y < 9) return false;
-    if (x < 9 && y > 15) return false;
-    if (x > 15 && y < 9) return false;
-    if (x === 6 || y === 6) return false;
-    return true;
-  }
-}
 
 export default function ScanPage() {
   const router = useRouter();
@@ -142,9 +18,7 @@ export default function ScanPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
-  // 用 ref 跟踪扫描状态，避免闭包陷阱
   const scanningRef = useRef(false);
-  const decoderRef = useRef<SimpleQRCodeDecoder | null>(null);
   const mountedRef = useRef(true);
 
   const handleResult = useCallback((result: string) => {
@@ -152,6 +26,9 @@ export default function ScanPage() {
     if (match) {
       stopCamera();
       router.push(`/student/dashboard/tasks/${match[1]}`);
+    } else {
+      // 不是作业二维码，继续扫描
+      console.log('扫描到非作业二维码:', result);
     }
   }, [router]);
 
@@ -173,7 +50,7 @@ export default function ScanPage() {
 
   const startCamera = useCallback(async () => {
     setError('');
-    
+
     // 先停止已有的流
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
@@ -197,7 +74,7 @@ export default function ScanPage() {
         },
         audio: false,
       });
-      
+
       if (!mountedRef.current) {
         stream.getTracks().forEach(t => t.stop());
         return;
@@ -212,7 +89,7 @@ export default function ScanPage() {
       }
 
       video.srcObject = stream;
-      
+
       // 等待 video 元素准备好
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('视频加载超时')), 10000);
@@ -232,7 +109,7 @@ export default function ScanPage() {
       setScanning(true);
       setLoading(false);
 
-      // 解码循环 - 使用 ref 判断状态，避免闭包陷阱
+      // 解码循环 - 使用 jsQR 库进行识别
       const detectLoop = () => {
         if (!scanningRef.current) return;
         if (!mountedRef.current) return;
@@ -258,12 +135,12 @@ export default function ScanPage() {
 
         try {
           const imageData = ctx.getImageData(0, 0, w, h);
-          if (!decoderRef.current) {
-            decoderRef.current = new SimpleQRCodeDecoder();
-          }
-          const result = decoderRef.current.decode(imageData);
-          if (result) {
-            handleResult(result);
+          // 使用 jsQR 解码，支持各种版本的二维码
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+          });
+          if (code && code.data) {
+            handleResult(code.data);
             return;
           }
         } catch {
@@ -299,11 +176,10 @@ export default function ScanPage() {
   // 页面加载后自动启动摄像头
   useEffect(() => {
     mountedRef.current = true;
-    // 延迟一帧确保 video 元素已渲染
     const timer = setTimeout(() => {
       startCamera();
     }, 100);
-    
+
     return () => {
       mountedRef.current = false;
       clearTimeout(timer);
@@ -330,10 +206,11 @@ export default function ScanPage() {
           return;
         }
 
-        const maxSize = 800;
+        // 适当缩放图片以提高解码速度
+        const maxSize = 1000;
         let width = img.width;
         let height = img.height;
-        
+
         if (width > height) {
           if (width > maxSize) {
             height = (height * maxSize) / width;
@@ -345,20 +222,20 @@ export default function ScanPage() {
             height = maxSize;
           }
         }
-        
+
         canvas.width = width;
         canvas.height = height;
         ctx.drawImage(img, 0, 0, width, height);
-        
+
         const imageData = ctx.getImageData(0, 0, width, height);
-        if (!decoderRef.current) {
-          decoderRef.current = new SimpleQRCodeDecoder();
-        }
-        const result = decoderRef.current.decode(imageData);
-        
+        // 使用 jsQR 解码
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'attemptBoth',
+        });
+
         setLoading(false);
-        if (result) {
-          handleResult(result);
+        if (code && code.data) {
+          handleResult(code.data);
         } else {
           setError('未能识别图片中的二维码，请确保图片清晰完整');
         }
@@ -374,13 +251,13 @@ export default function ScanPage() {
       setError('文件读取失败');
     };
     reader.readAsDataURL(file);
-    // 重置 input 以便重复选择同一文件
     e.target.value = '';
   }, [handleResult, stopCamera]);
 
   return (
-    <div className="flex h-screen flex-col bg-black">
-      <header className="flex items-center justify-between border-b border-white/10 bg-black/50 px-4 py-3 backdrop-blur-sm">
+    <div className="fixed inset-0 flex flex-col bg-black">
+      {/* 顶部导航栏 */}
+      <header className="flex items-center justify-between border-b border-white/10 bg-black/50 px-4 py-3 backdrop-blur-sm z-20">
         <button
           onClick={() => {
             stopCamera();
@@ -395,38 +272,45 @@ export default function ScanPage() {
         <div className="w-16" />
       </header>
 
-      <main className="flex-1 relative overflow-hidden">
-        {/* video 始终渲染，避免 ref 丢失 */}
+      {/* 摄像头预览区域 */}
+      <div className="relative flex-1 overflow-hidden bg-black">
+        {/* video 始终渲染，绝对定位铺满容器 */}
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className={`h-full w-full object-cover ${scanning ? 'opacity-100' : 'opacity-0'}`}
+          className="absolute inset-0 h-full w-full object-cover"
         />
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* 扫描框引导 */}
+        {/* 扫描框引导遮罩 */}
         {scanning && (
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute inset-0 bg-black/40" />
-            <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2">
-              <div className="relative h-full w-full rounded-2xl bg-transparent overflow-hidden">
-                <div className="absolute left-0 top-0 h-10 w-10 border-l-4 border-t-4 border-white rounded-tl-lg" />
-                <div className="absolute right-0 top-0 h-10 w-10 border-r-4 border-t-4 border-white rounded-tr-lg" />
-                <div className="absolute bottom-0 left-0 h-10 w-10 border-l-4 border-b-4 border-white rounded-bl-lg" />
-                <div className="absolute bottom-0 right-0 h-10 w-10 border-r-4 border-b-4 border-white rounded-br-lg" />
-                <div className="absolute left-0 top-1/2 h-0.5 w-full bg-white/60 animate-pulse" />
-              </div>
+          <div className="pointer-events-none absolute inset-0 z-10">
+            {/* 半透明遮罩，中间镂空 */}
+            <div className="absolute inset-0 bg-black/50" />
+            {/* 镂空区域 - 居中 */}
+            <div className="absolute left-1/2 top-1/2 h-60 w-60 -translate-x-1/2 -translate-y-1/2">
+              {/* 用白色边框做出镂空效果 */}
+              <div className="absolute inset-0 rounded-xl border-[3px] border-white/90 shadow-[0_0_0_1000px_rgba(0,0,0,0.5)]" />
+              {/* 四个角 */}
+              <div className="absolute -left-1 -top-1 h-8 w-8 border-l-4 border-t-4 border-[#3b82f6] rounded-tl-lg" />
+              <div className="absolute -right-1 -top-1 h-8 w-8 border-r-4 border-t-4 border-[#3b82f6] rounded-tr-lg" />
+              <div className="absolute -bottom-1 -left-1 h-8 w-8 border-l-4 border-b-4 border-[#3b82f6] rounded-bl-lg" />
+              <div className="absolute -bottom-1 -right-1 h-8 w-8 border-r-4 border-b-4 border-[#3b82f6] rounded-br-lg" />
+              {/* 扫描线动画 */}
+              <div className="absolute left-2 right-2 top-1/2 h-0.5 bg-gradient-to-r from-transparent via-[#3b82f6] to-transparent shadow-[0_0_8px_#3b82f6] animate-[scan_2s_ease-in-out_infinite]" />
             </div>
-            <p className="absolute bottom-20 left-1/2 -translate-x-1/2 text-center text-sm text-white/80">
-              将作业二维码放入框内即可自动识别
+            {/* 提示文字 */}
+            <p className="absolute bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-center text-sm text-white/90">
+              将作业二维码对准框内即可自动识别
             </p>
           </div>
         )}
 
+        {/* 加载中 */}
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
               <span className="text-sm text-white/80">正在启动摄像头...</span>
@@ -434,8 +318,9 @@ export default function ScanPage() {
           </div>
         )}
 
+        {/* 错误提示 */}
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-6">
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 p-6">
             <div className="flex flex-col items-center gap-4 text-center">
               <CameraOff className="h-14 w-14 text-red-400" />
               <span className="text-sm text-white max-w-xs">{error}</span>
@@ -458,9 +343,10 @@ export default function ScanPage() {
             </div>
           </div>
         )}
-      </main>
+      </div>
 
-      <footer className="border-t border-white/10 bg-black/50 px-4 py-4 backdrop-blur-sm">
+      {/* 底部操作栏 */}
+      <footer className="relative z-20 border-t border-white/10 bg-black/80 px-4 py-4 backdrop-blur-sm">
         <div className="flex gap-3">
           <button
             onClick={scanning ? stopCamera : startCamera}
@@ -491,6 +377,14 @@ export default function ScanPage() {
           onChange={handleGallerySelect}
         />
       </footer>
+
+      {/* 扫描线动画 keyframes */}
+      <style jsx>{`
+        @keyframes scan {
+          0%, 100% { transform: translateY(-80px); }
+          50% { transform: translateY(80px); }
+        }
+      `}</style>
     </div>
   );
 }
