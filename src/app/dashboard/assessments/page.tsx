@@ -2453,7 +2453,7 @@ function QuestionForm({
   isNew: boolean;
   onSave: (q: Partial<Question>, isNew: boolean) => void;
   onCancel: () => void;
-  classList: string[];
+  classList: Array<{ id: string; name: string }>;
   studentList: Array<{ student_number: string; name: string }>;
 }) {
   const [type, setType] = useState(question?.type || 1);
@@ -2562,7 +2562,7 @@ function QuestionForm({
             </SelectTrigger>
             <SelectContent>
               {classList.map((cls) => (
-                <SelectItem key={cls} value={cls}>{cls}</SelectItem>
+                <SelectItem key={cls.id} value={cls.name}>{cls.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
