@@ -97,6 +97,8 @@ interface Assignment {
   personal_completed: number;
   completion_rate?: number;
   avg_score?: number;
+  requirements?: string | null;
+  class_ids?: string[] | null;
 }
 
 interface Question {
@@ -180,7 +182,7 @@ function groupQuestionsByCategory(questions: Question[]): QuestionGroup[] {
     if (!studentId && q.category?.includes('-')) {
       studentId = q.category.split('-')[1];
     }
-    studentId = studentId || '全部学生';
+    studentId = studentId || '';
     const studentName = q.student_name || '';
     if (!personalMap.has(studentId)) personalMap.set(studentId, { name: studentName, questions: [] });
     personalMap.get(studentId)!.questions.push(q);
@@ -223,7 +225,8 @@ function getOperatorName(): string {
     const userStr = localStorage.getItem('edu_user');
     if (userStr) {
       const user = JSON.parse(userStr);
-      return user.name || 'system';
+      const name = user.name || 'system';
+      return encodeURIComponent(name);
     }
   } catch {}
   return 'system';
@@ -249,6 +252,8 @@ export default function AssessmentsPage() {
     pdt_cnt: 5,
     deadline: '',
     file: null as File | null,
+    requirements: '', // 作业要求
+    class_ids: [] as string[], // 关联班级ID
   });
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [chapterList, setChapterList] = useState<string[]>([]);
@@ -256,7 +261,7 @@ export default function AssessmentsPage() {
   const [availableKnowledge, setAvailableKnowledge] = useState<string[]>([]);
 
   // 班级和学生列表（用于新增题目）
-  const [classList, setClassList] = useState<string[]>([]);
+  const [classList, setClassList] = useState<Array<{ id: string; name: string }>>([]);
   const [studentList, setStudentList] = useState<Array<{ student_number: string; name: string }>>([]);
 
   // Edit dialog
@@ -384,7 +389,7 @@ export default function AssessmentsPage() {
     try {
       const res = await fetch('/api/classes');
       const data = await res.json();
-      const classes = Array.isArray(data) ? data.map((c: any) => c.name) : [];
+      const classes = Array.isArray(data) ? data.map((c: any) => ({ id: c.id, name: c.name })) : [];
       setClassList(classes);
     } catch (err) {
       console.error('获取班级列表失败:', err);
@@ -463,6 +468,7 @@ export default function AssessmentsPage() {
     if (!createForm.name) return alert('请填写作业名称');
     if (!createForm.file) return alert('请上传课程资料');
     if (createForm.xzt_cnt <= 0 && createForm.pdt_cnt <= 0) return alert('选择题或判断题至少一种要有题目');
+    if (createForm.class_ids.length === 0) return alert('请勾选关联班级');
 
     setCreating(true);
     try {
@@ -491,6 +497,8 @@ export default function AssessmentsPage() {
           ppt_file_url: createForm.file?.name || '',
           ppt_file_id: file_id,
           deadline: createForm.deadline || null,
+          requirements: createForm.requirements || null, // 作业要求
+          class_ids: createForm.class_ids.length > 0 ? createForm.class_ids : null, // 关联班级
         }),
       });
       const assignData = await assignRes.json();
@@ -505,6 +513,7 @@ export default function AssessmentsPage() {
         xzt_cnt: createForm.xzt_cnt,
         pdt_cnt: createForm.pdt_cnt,
         knowledge_points: createForm.knowledge_points,
+        class_ids: createForm.class_ids.length > 0 ? createForm.class_ids : null, // 传递勾选的班级ID
       };
 
       // Fire all three workflow calls in parallel
@@ -537,6 +546,8 @@ export default function AssessmentsPage() {
         pdt_cnt: 5,
         deadline: '',
         file: null,
+        requirements: '',
+        class_ids: [],
       });
       fetchAssignments();
     } catch (err: unknown) {
@@ -577,6 +588,8 @@ export default function AssessmentsPage() {
           xzt_cnt: editForm.xzt_cnt,
           pdt_cnt: editForm.pdt_cnt,
           deadline: editForm.deadline,
+          requirements: editForm.requirements || null,
+          class_ids: (editForm.class_ids && editForm.class_ids.length > 0) ? editForm.class_ids : null,
         }),
       });
       const data = await res.json();
@@ -825,6 +838,7 @@ export default function AssessmentsPage() {
                 />
               </th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600">作业名称</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600">关联班级</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600">所属章节</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600">所属知识点</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600">生成状态</th>
@@ -840,14 +854,14 @@ export default function AssessmentsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={12} className="py-12 text-center text-[var(--muted-foreground)]">
+                <td colSpan={13} className="py-12 text-center text-[var(--muted-foreground)]">
                   <Loader2 className="mx-auto mb-2 size-6 animate-spin" />
                   加载中...
                 </td>
               </tr>
             ) : assignments.length === 0 ? (
               <tr>
-                <td colSpan={12} className="py-12 text-center text-[var(--muted-foreground)]">
+                <td colSpan={13} className="py-12 text-center text-[var(--muted-foreground)]">
                   暂无作业数据
                 </td>
               </tr>
@@ -864,6 +878,31 @@ export default function AssessmentsPage() {
                       />
                     </td>
                     <td className="px-4 py-3 font-medium">{a.name}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex max-w-[120px] flex-wrap gap-1">
+                        {(!a.class_ids || a.class_ids.length === 0) ? (
+                          <Badge variant="outline" className="text-xs bg-gray-50">
+                            无关联班级
+                          </Badge>
+                        ) : (
+                          <>
+                            {a.class_ids.slice(0, 2).map((classId) => {
+                              const classInfo = classList.find(c => c.id === classId);
+                              return (
+                                <Badge key={classId} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                  {classInfo?.name || classId}
+                                </Badge>
+                              );
+                            })}
+                            {a.class_ids.length > 2 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{a.class_ids.length - 2}
+                              </Badge>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex max-w-[120px] flex-wrap gap-1">
                         {(a.chapters || []).slice(0, 2).map((ch) => (
@@ -1109,18 +1148,19 @@ export default function AssessmentsPage() {
 
       {/* ========= Create Assignment Dialog ========= */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>新建作业</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
+            {/* 第一行：作业类型 */}
+            <div className="space-y-2.5">
               <Label>作业类型</Label>
               <Select
                 value={createForm.type}
                 onValueChange={(v) => setCreateForm((p) => ({ ...p, type: v }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1130,18 +1170,49 @@ export default function AssessmentsPage() {
               </Select>
             </div>
 
-            <div className="space-y-2">
+            {/* 第二行：作业名称 */}
+            <div className="space-y-2.5">
               <Label>作业名称</Label>
               <Input
                 value={createForm.name}
                 onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
                 placeholder="请输入作业名称"
+                className="h-10"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>上传课程资料</Label>
-              <div className="flex items-center gap-2">
+            {/* 第三行：关联班级 */}
+            <div className="space-y-2.5">
+              <Label>关联班级</Label>
+              <div className="max-h-28 overflow-y-auto rounded-md border p-2.5">
+                {classList.length === 0 ? (
+                  <p className="text-sm text-[var(--muted-foreground)]">暂无班级数据</p>
+                ) : (
+                  classList.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2.5 py-1.5">
+                      <Checkbox
+                        className="scale-105"
+                        checked={createForm.class_ids.includes(c.id)}
+                        onCheckedChange={(checked) => {
+                          setCreateForm((p) => ({
+                            ...p,
+                            class_ids: checked
+                              ? [...p.class_ids, c.id]
+                              : p.class_ids.filter((id) => id !== c.id),
+                          }));
+                        }}
+                      />
+                      <span className="text-sm">{c.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 第四行：上传课程资料 + 截止时间 */}
+            <div className="grid grid-cols-2 gap-5">
+              <div className="space-y-2.5">
+                <Label>上传课程资料</Label>
                 <Input
                   type="file"
                   accept=".ppt,.pptx,.pdf,.doc,.docx"
@@ -1149,74 +1220,79 @@ export default function AssessmentsPage() {
                     const file = e.target.files?.[0] || null;
                     setCreateForm((p) => ({ ...p, file }));
                   }}
-                  className="flex-1"
+                  className="h-10"
                 />
-                {createForm.file && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCreateForm((p) => ({ ...p, file: null }))}
-                  >
-                    <X className="size-4" />
-                  </Button>
-                )}
+              </div>
+              <div className="space-y-2.5">
+                <Label>截止时间</Label>
+                <Input
+                  type="datetime-local"
+                  value={createForm.deadline}
+                  onChange={(e) => setCreateForm((p) => ({ ...p, deadline: e.target.value }))}
+                  className="h-10"
+                />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>所属章节（可多选）</Label>
-              <div className="max-h-32 overflow-y-auto rounded-md border p-2">
-                {chapterList.length === 0 ? (
-                  <p className="text-sm text-[var(--muted-foreground)]">请先在设置中添加课程知识点</p>
-                ) : (
-                  chapterList.map((ch) => (
-                    <label key={ch} className="flex items-center gap-2 py-1">
-                      <Checkbox
-                        checked={createForm.chapters.includes(ch)}
-                        onCheckedChange={(checked) => {
-                          setCreateForm((p) => ({
-                            ...p,
-                            chapters: checked
-                              ? [...p.chapters, ch]
-                              : p.chapters.filter((c) => c !== ch),
-                          }));
-                        }}
-                      />
-                      <span className="text-sm">{ch}</span>
-                    </label>
-                  ))
-                )}
+            {/* 第五行：所属章节 + 所属知识点 */}
+            <div className="grid grid-cols-2 gap-5">
+              <div className="space-y-2.5">
+                <Label>所属章节（可多选）</Label>
+                <div className="max-h-28 overflow-y-auto rounded-md border p-2.5">
+                  {chapterList.length === 0 ? (
+                    <p className="text-sm text-[var(--muted-foreground)]">请先在设置中添加课程知识点</p>
+                  ) : (
+                    chapterList.map((ch) => (
+                      <label key={ch} className="flex items-center gap-2.5 py-1.5">
+                        <Checkbox
+                          className="scale-105"
+                          checked={createForm.chapters.includes(ch)}
+                          onCheckedChange={(checked) => {
+                            setCreateForm((p) => ({
+                              ...p,
+                              chapters: checked
+                                ? [...p.chapters, ch]
+                                : p.chapters.filter((c) => c !== ch),
+                            }));
+                          }}
+                        />
+                        <span className="text-sm">{ch}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                <Label>所属知识点（可多选）</Label>
+                <div className="max-h-28 overflow-y-auto rounded-md border p-2.5">
+                  {availableKnowledge.length === 0 ? (
+                    <p className="text-sm text-[var(--muted-foreground)]">请先选择章节</p>
+                  ) : (
+                    availableKnowledge.map((kp) => (
+                      <label key={kp} className="flex items-center gap-2.5 py-1.5">
+                        <Checkbox
+                          className="scale-105"
+                          checked={createForm.knowledge_points.includes(kp)}
+                          onCheckedChange={(checked) => {
+                            setCreateForm((p) => ({
+                              ...p,
+                              knowledge_points: checked
+                                ? [...p.knowledge_points, kp]
+                                : p.knowledge_points.filter((k) => k !== kp),
+                            }));
+                          }}
+                        />
+                        <span className="text-sm">{kp}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>所属知识点（与章节级联，可多选）</Label>
-              <div className="max-h-32 overflow-y-auto rounded-md border p-2">
-                {availableKnowledge.length === 0 ? (
-                  <p className="text-sm text-[var(--muted-foreground)]">请先选择章节</p>
-                ) : (
-                  availableKnowledge.map((kp) => (
-                    <label key={kp} className="flex items-center gap-2 py-1">
-                      <Checkbox
-                        checked={createForm.knowledge_points.includes(kp)}
-                        onCheckedChange={(checked) => {
-                          setCreateForm((p) => ({
-                            ...p,
-                            knowledge_points: checked
-                              ? [...p.knowledge_points, kp]
-                              : p.knowledge_points.filter((k) => k !== kp),
-                          }));
-                        }}
-                      />
-                      <span className="text-sm">{kp}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+            {/* 第六行：选择题题数 + 判断题题数 */}
+            <div className="grid grid-cols-2 gap-5">
+              <div className="space-y-2.5">
                 <Label>选择题题数</Label>
                 <Input
                   type="number"
@@ -1225,9 +1301,10 @@ export default function AssessmentsPage() {
                   onChange={(e) =>
                     setCreateForm((p) => ({ ...p, xzt_cnt: parseInt(e.target.value) || 0 }))
                   }
+                  className="h-10"
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <Label>判断题题数</Label>
                 <Input
                   type="number"
@@ -1236,16 +1313,20 @@ export default function AssessmentsPage() {
                   onChange={(e) =>
                     setCreateForm((p) => ({ ...p, pdt_cnt: parseInt(e.target.value) || 0 }))
                   }
+                  className="h-10"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>截止时间</Label>
-              <Input
-                type="datetime-local"
-                value={createForm.deadline}
-                onChange={(e) => setCreateForm((p) => ({ ...p, deadline: e.target.value }))}
+            {/* 第七行：作业要求 */}
+            <div className="space-y-2.5">
+              <Label>作业要求</Label>
+              <Textarea
+                value={createForm.requirements}
+                onChange={(e) => setCreateForm((p) => ({ ...p, requirements: e.target.value }))}
+                placeholder="例如：基础题目占60%，应用题目占40%"
+                rows={2.5}
+                className="min-h-[60px]"
               />
             </div>
           </div>
@@ -1307,6 +1388,43 @@ export default function AssessmentsPage() {
                   value={editForm.deadline ? editForm.deadline.substring(0, 16) : ''}
                   onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>作业要求</Label>
+                <Textarea
+                  value={editForm.requirements || ''}
+                  onChange={(e) => setEditForm({ ...editForm, requirements: e.target.value })}
+                  placeholder="例如：基础题目占60%，应用题目占40%"
+                  rows={3}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>关联班级</Label>
+                <div className="max-h-32 overflow-y-auto rounded-md border p-2">
+                  {classList.length === 0 ? (
+                    <p className="text-sm text-[var(--muted-foreground)]">暂无班级数据</p>
+                  ) : (
+                    classList.map((c) => (
+                      <label key={c.id} className="flex items-center gap-2 py-1">
+                        <Checkbox
+                          checked={(editForm.class_ids || []).includes(c.id)}
+                          onCheckedChange={(checked) => {
+                            const currentClassIds = editForm.class_ids || [];
+                            setEditForm({
+                              ...editForm,
+                              class_ids: checked
+                                ? [...currentClassIds, c.id]
+                                : currentClassIds.filter((id) => id !== c.id),
+                            });
+                          }}
+                        />
+                        <span className="text-sm">{c.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1397,6 +1515,38 @@ export default function AssessmentsPage() {
                   <span className="flex items-center gap-1"><Clock className="size-3" />截止 {formatDate(detailAssignment.deadline)}</span>
                 )}
                 <span className="flex items-center gap-1"><ListChecks className="size-3" />{detailAssignment.xzt_cnt}选择 / {detailAssignment.pdt_cnt}判断</span>
+              </div>
+            )}
+
+            {/* 关联班级和作业要求 */}
+            {detailAssignment && (detailAssignment.class_ids || detailAssignment.requirements) && (
+              <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-blue-200/80">
+                {detailAssignment.class_ids && detailAssignment.class_ids.length > 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <Users className="size-3" />
+                    <span className="text-blue-300">关联班级：</span>
+                    <span className="text-white font-medium">
+                      {detailAssignment.class_ids.map(classId => {
+                        const classInfo = classList.find(c => c.id === classId);
+                        return classInfo?.name || classId;
+                      }).join('、')}
+                    </span>
+                  </span>
+                )}
+                {!detailAssignment.class_ids || detailAssignment.class_ids.length === 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <Users className="size-3" />
+                    <span className="text-blue-300">关联班级：</span>
+                    <span className="text-white font-medium"></span>
+                  </span>
+                )}
+                {detailAssignment.requirements && (
+                  <span className="flex items-center gap-1.5 max-w-[400px]">
+                    <FileText className="size-3" />
+                    <span className="text-blue-300">作业要求：</span>
+                    <span className="text-white font-medium truncate">{detailAssignment.requirements}</span>
+                  </span>
+                )}
               </div>
             )}
 
@@ -1845,7 +1995,7 @@ export default function AssessmentsPage() {
                       personalQuestions.forEach(q => {
                         let studentId = q.student_number;
                         if (!studentId && q.category?.includes('-')) studentId = q.category.split('-')[1];
-                        studentId = studentId || '全部学生';
+                        studentId = studentId || '';
                         const studentName = q.student_name || '';
                         if (!personalMap.has(studentId)) personalMap.set(studentId, { name: studentName, questions: [] });
                         personalMap.get(studentId)!.questions.push(q);
@@ -2152,7 +2302,7 @@ export default function AssessmentsPage() {
                 personalQuestions.forEach(q => {
                   let studentId = q.student_number;
                   if (!studentId && q.category?.includes('-')) studentId = q.category.split('-')[1];
-                  studentId = studentId || '全部学生';
+                  studentId = studentId || '';
                   const studentName = q.student_name || '';
                   if (!personalMap.has(studentId)) personalMap.set(studentId, { name: studentName, questions: [] });
                   personalMap.get(studentId)!.questions.push(q);

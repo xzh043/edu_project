@@ -10,6 +10,7 @@ interface User {
   phone?: string;
   employee_id?: string;
   student_id?: string;
+  class_name?: string; // 学生班级名称
 }
 
 interface AuthContextType {

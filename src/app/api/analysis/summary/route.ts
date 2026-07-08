@@ -22,7 +22,7 @@ export async function GET() {
     const students = await studentsRes.json();
 
     // 3. Get all assignments
-    const assignmentsRes = await fetch(`${SUPABASE_URL}/rest/v1/assignments?select=id,name,type,status,chapters&order=created_at.desc`, { headers });
+    const assignmentsRes = await fetch(`${SUPABASE_URL}/rest/v1/assignments?select=id,name,type,status,chapters,knowledge_points&order=created_at.desc`, { headers });
     const assignments = await assignmentsRes.json();
 
     // 4. Get all submissions
@@ -47,7 +47,17 @@ export async function GET() {
       const avgScoreRate = aSubs.length > 0
         ? Math.round((aSubs.reduce((sum: number, s: any) => sum + (s.total_score || 0), 0) / aSubs.length) / (aSubs[0]?.max_score || 1) * 100)
         : 0;
-      
+
+      // 计算平均分（得分率转换为100分制）
+      const scoreRates = aSubs.map((s: any) => {
+        const mx = Number(s.max_score) || 0;
+        return mx > 0 ? ((Number(s.total_score) || 0) / mx) * 100 : 0;
+      });
+      const avgScore = aSubs.length > 0
+        ? Math.round(scoreRates.reduce((sum: number, rate: number) => sum + rate, 0) / aSubs.length * 10) / 10
+        : 0;
+      const maxScore = aSubs.length > 0 ? Math.round(Math.max(...scoreRates) * 10) / 10 : 0;
+
       // Parse chapters
       let chapterList: string[] = [];
       if (a.chapters) {
@@ -59,15 +69,29 @@ export async function GET() {
         }
       }
 
+      // Parse knowledge_points
+      let knowledgeList: string[] = [];
+      if (a.knowledge_points) {
+        try {
+          knowledgeList = typeof a.knowledge_points === 'string' ? JSON.parse(a.knowledge_points) : a.knowledge_points;
+          if (!Array.isArray(knowledgeList)) knowledgeList = [String(knowledgeList)];
+        } catch {
+          knowledgeList = [String(a.knowledge_points)];
+        }
+      }
+
       return {
         id: a.id,
         name: a.name,
         type: a.type,
         chapters: chapterList,
+        knowledge_points: knowledgeList,
         total_students: totalStudents,
         completed_count: completedCount,
         completion_rate: completionRate,
         avg_score_rate: avgScoreRate,
+        avg_score: avgScore,
+        max_score: maxScore,
       };
     });
 

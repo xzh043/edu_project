@@ -158,11 +158,12 @@ export function AssignmentDetailDialog({
 
   const fetchData = useCallback(async () => {
     if (!assignment) return;
-    
+
     setDetailLoading(true);
     setDetailStatsLoading(true);
     setDetailStats(null);
-    
+    setAssignmentAiSuggestion(null);
+
     try {
       const res = await fetch(`/api/questions?assignment_id=${assignment.id}`);
       const data = await res.json();
@@ -172,7 +173,7 @@ export function AssignmentDetailDialog({
     } finally {
       setDetailLoading(false);
     }
-    
+
     if (assignment.status === 'published') {
       try {
         const res = await fetch(`/api/assignments/stats?assignment_id=${assignment.id}`);
@@ -184,6 +185,19 @@ export function AssignmentDetailDialog({
         // ignore
       } finally {
         setDetailStatsLoading(false);
+      }
+
+      // 获取已有的AI建议
+      try {
+        const res = await fetch(`/api/assignments/ai-suggestion?assignment_id=${assignment.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.suggestion) {
+            setAssignmentAiSuggestion(data.suggestion);
+          }
+        }
+      } catch {
+        // ignore
       }
     }
   }, [assignment]);
@@ -333,8 +347,8 @@ export function AssignmentDetailDialog({
                                 <div className="flex-1 min-w-0 space-y-5">
                                   <div className="grid grid-cols-4 gap-3">
                                     {[
-                                      { label: '平均分', value: cls.avg_score, icon: BarChart3, bg: 'from-blue-50 to-blue-100/40', iconColor: 'text-blue-500', valueColor: 'text-blue-700' },
-                                      { label: '最高分', value: cls.max_score, icon: Trophy, bg: 'from-amber-50 to-amber-100/40', iconColor: 'text-amber-500', valueColor: 'text-amber-700' },
+                                      { label: '平均分', value: cls.avg_score.toFixed(1), icon: BarChart3, bg: 'from-blue-50 to-blue-100/40', iconColor: 'text-blue-500', valueColor: 'text-blue-700' },
+                                      { label: '最高分', value: cls.max_score.toFixed(1), icon: Trophy, bg: 'from-amber-50 to-amber-100/40', iconColor: 'text-amber-500', valueColor: 'text-amber-700' },
                                       { label: '及格率', value: `${cls.pass_rate}%`, icon: TrendingUp, bg: 'from-emerald-50 to-emerald-100/40', iconColor: 'text-emerald-500', valueColor: 'text-emerald-700' },
                                       { label: '完成率', value: `${cls.completion_rate}%`, icon: CheckCircle2, bg: 'from-violet-50 to-violet-100/40', iconColor: 'text-violet-500', valueColor: 'text-violet-700' },
                                     ].map((kpi) => (
@@ -660,7 +674,7 @@ export function AssignmentDetailDialog({
                     personalQuestions.forEach(q => {
                       let studentId = q.student_number;
                       if (!studentId && q.category?.includes('-')) studentId = q.category.split('-')[1];
-                      studentId = studentId || '全部学生';
+                      studentId = studentId || '';
                       const studentName = q.student_name || '';
                       if (!personalMap.has(studentId)) personalMap.set(studentId, { name: studentName, questions: [] });
                       personalMap.get(studentId)!.questions.push(q);

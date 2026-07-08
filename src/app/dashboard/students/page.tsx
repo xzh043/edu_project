@@ -103,11 +103,12 @@ export default function StudentsPage() {
   // 错误信息
   const [formError, setFormError] = useState('');
 
-  // 获取当前用户名（用于 x-operator header）
+  // 获取当前用户名（用于 x-operator header，需要编码以支持中文）
   const getOperatorName = useCallback(() => {
     try {
       const user = localStorage.getItem('edu_user');
-      return user ? JSON.parse(user).name : 'system';
+      const name = user ? JSON.parse(user).name : 'system';
+      return encodeURIComponent(name);
     } catch {
       return 'system';
     }
@@ -269,7 +270,7 @@ export default function StudentsPage() {
       fetchStudents();
     } catch (err) {
       console.error('批量导入失败:', err);
-      setFormError('导入失败，请重试');
+      setFormError(err instanceof Error ? err.message : '导入失败，请重试');
     } finally {
       setImporting(false);
     }
@@ -334,7 +335,7 @@ export default function StudentsPage() {
       fetchStudents();
     } catch (err) {
       console.error('新增学生失败:', err);
-      setFormError('新增失败，请重试');
+      setFormError(err instanceof Error ? err.message : '新增失败，请重试');
     }
   };
 
@@ -379,7 +380,7 @@ export default function StudentsPage() {
       fetchStudents();
     } catch (err) {
       console.error('修改学生失败:', err);
-      setFormError('修改失败，请重试');
+      setFormError(err instanceof Error ? err.message : '修改失败，请重试');
     }
   };
 
@@ -537,7 +538,7 @@ export default function StudentsPage() {
             }`}
           >
             <Users className="size-4" />
-            全部学生
+            无关联班级
           </button>
           {classes.map((cls) => (
             <div

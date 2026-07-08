@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
 
     // 获取学生信息（班级名和学号）
     let studentClassName = '';
+    let studentClassId = '';
     let studentNumberValue = studentNumber || '';
     
     // 先通过 profiles 表查找学生学号（resolvedStudentId 是 profiles.user_id）
@@ -50,13 +51,15 @@ export async function GET(request: NextRequest) {
         .eq('student_number', studentNumberValue)
         .single();
       if (student) {
+        studentClassId = student.class_id;
         const { data: classData } = await supabase
           .from('classes')
-          .select('name')
+          .select('name, id')
           .eq('id', student.class_id)
           .single();
         if (classData) {
           studentClassName = classData.name;
+          studentClassId = classData.id;
         }
       }
     }
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
     // 获取已发布的作业
     let assignmentsQuery = supabase
       .from('assignments')
-      .select('id, name, type, chapters, knowledge_points, xzt_cnt, pdt_cnt, deadline, publish_time, created_by, created_at')
+      .select('id, name, type, chapters, knowledge_points, xzt_cnt, pdt_cnt, deadline, publish_time, created_by, created_at, requirements, class_ids')
       .eq('status', 'published')
       .order('publish_time', { ascending: false });
 
@@ -72,6 +75,16 @@ export async function GET(request: NextRequest) {
     if (assignmentsError) {
       return NextResponse.json({ error: '查询作业失败' }, { status: 500 });
     }
+
+    // 按班级过滤作业（如果作业设置了 class_ids，只返回该班级的作业）
+    const filteredAssignments = (assignments || []).filter(a => {
+      // 如果作业没有设置 class_ids，则所有学生都能看到
+      if (!a.class_ids || a.class_ids.length === 0) {
+        return true;
+      }
+      // 如果作业设置了 class_ids，检查学生的班级是否在其中
+      return a.class_ids.includes(studentClassId);
+    });
 
     // 获取该学生的提交记录
     const { data: submissions } = await supabase
@@ -87,7 +100,7 @@ export async function GET(request: NextRequest) {
       .select('assignment_id, type, category, class_name, student_number');
 
     // 组装结果
-    let result = (assignments || []).map(a => {
+    let result = filteredAssignments.map(a => {
       const sub = submissionMap.get(a.id);
       
       // 统计该学生在这个作业中的实际题目数
@@ -131,6 +144,8 @@ export async function GET(request: NextRequest) {
         publish_time: a.publish_time,
         created_by: a.created_by,
         created_at: a.created_at,
+        requirements: a.requirements || null, // 作业要求
+        class_ids: a.class_ids || null, // 关联班级
         // 答题状态
         submission_id: sub?.id || null,
         submission_status: sub?.status || null, // null=未开始, in_progress, submitted, graded

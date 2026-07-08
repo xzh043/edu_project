@@ -210,7 +210,7 @@ export async function POST(request: Request) {
   let assignmentId: string | undefined;
   try {
     const body = await request.json();
-    const { assignment_id, type, file_id, xzt_cnt, pdt_cnt, knowledge_points } = body;
+    const { assignment_id, type, file_id, xzt_cnt, pdt_cnt, knowledge_points, class_ids } = body;
     assignmentId = assignment_id;
 
     if (!assignment_id) {
@@ -220,6 +220,16 @@ export async function POST(request: Request) {
     const workflowType = type || 'all'; // 'teacher' | 'class' | 'personal' | 'all'
     const accessToken = await getAccessToken();
     const client = await getSupabaseClient();
+
+    // 获取作业的章节和知识点信息（用于 workflow 参数）
+    const { data: assignment } = await client
+      .from('assignments')
+      .select('chapters, knowledge_points')
+      .eq('id', assignment_id)
+      .single();
+
+    const assignmentChapters = assignment?.chapters || [];
+    const assignmentKnowledgePoints = assignment?.knowledge_points || [];
 
     // Get current max sort_order for this assignment
     const { data: existingQuestions } = await client
@@ -258,80 +268,113 @@ export async function POST(request: Request) {
 
     if (workflowType === 'class' || workflowType === 'all') {
       console.log('=== 生成班级共性作业 ===');
-      const { data: classes } = await client.from('classes').select('name');
-      const classList = Array.isArray(classes) ? classes.map(c => c.name) : [];
 
-      await safeUpdate(client, assignment_id, {
-        class_status: 'generating',
-        class_total: classList.length,
-        class_completed: 0,
-      });
-
-      let classCompleted = 0;
-      for (const className of classList) {
-        console.log(`正在为班级 ${className} 生成共性作业...`);
-        const classQuestions = await runWorkflow(accessToken, WORKFLOW_ID_CLASS, {
-          knowledge_points: JSON.stringify(knowledge_points || []),
-          class: className,
+      // 必须勾选班级才能生成班级作业
+      if (!class_ids || class_ids.length === 0) {
+        console.log('未勾选班级，跳过班级作业生成');
+        await safeUpdate(client, assignment_id, {
+          class_status: 'completed',
+          class_total: 0,
+          class_completed: 0,
         });
-        classQuestions.forEach(q => {
-          if (!q.category || q.category === '') {
-            q.category = `class_assignment-${className}`;
+      } else {
+        // 根据勾选的班级ID查询班级名称
+        const { data: classes } = await client
+          .from('classes')
+          .select('id, name')
+          .in('id', class_ids);
+        const classList = Array.isArray(classes) ? classes.map(c => c.name) : [];
+        console.log(`勾选的班级：${classList.join(', ')}`);
+
+        await safeUpdate(client, assignment_id, {
+          class_status: 'generating',
+          class_total: classList.length,
+          class_completed: 0,
+        });
+
+        let classCompleted = 0;
+        for (const className of classList) {
+          console.log(`正在为班级 ${className} 生成共性作业...`);
+          const classQuestions = await runWorkflow(accessToken, WORKFLOW_ID_CLASS, {
+            knowledge_points: JSON.stringify(knowledge_points || []),
+            class: className,
+          });
+          classQuestions.forEach(q => {
+            if (!q.category || q.category === '') {
+              q.category = `class_assignment-${className}`;
+            }
+          });
+
+          if (classQuestions.length > 0) {
+            nextOrder = await saveQuestions(client, assignment_id, classQuestions, nextOrder, {
+              class_name: className,
+            });
           }
-        });
 
-        if (classQuestions.length > 0) {
-          nextOrder = await saveQuestions(client, assignment_id, classQuestions, nextOrder, { class_name: className });
+          classCompleted++;
+          await safeUpdate(client, assignment_id, { class_completed: classCompleted });
+
+          console.log(`班级 ${className} 生成 ${classQuestions.length} 题 (${classCompleted}/${classList.length})`);
         }
 
-        classCompleted++;
-        await safeUpdate(client, assignment_id, { class_completed: classCompleted });
-
-        console.log(`班级 ${className} 生成 ${classQuestions.length} 题 (${classCompleted}/${classList.length})`);
+        await safeUpdate(client, assignment_id, { class_status: 'completed' });
       }
-
-      await safeUpdate(client, assignment_id, { class_status: 'completed' });
     }
 
     if (workflowType === 'personal' || workflowType === 'all') {
       console.log('=== 生成个人个性化作业 ===');
-      // 查询学生学号和姓名
-      const { data: students } = await client.from('students').select('student_number, name');
-      const studentList = Array.isArray(students) ? students.map(s => ({ number: s.student_number, name: s.name })) : [];
 
-      await safeUpdate(client, assignment_id, {
-        personal_status: 'generating',
-        personal_total: studentList.length,
-        personal_completed: 0,
-      });
-
-      let personalCompleted = 0;
-      for (const student of studentList) {
-        console.log(`正在为学生 ${student.number} (${student.name}) 生成个性化作业...`);
-        const personalQuestions = await runWorkflow(accessToken, WORKFLOW_ID_PERSONAL, {
-          knowledge_points: JSON.stringify(knowledge_points || []),
-          id_number: student.number,
+      // 必须勾选班级才能生成个性化作业
+      if (!class_ids || class_ids.length === 0) {
+        console.log('未勾选班级，跳过个性化作业生成');
+        await safeUpdate(client, assignment_id, {
+          personal_status: 'completed',
+          personal_total: 0,
+          personal_completed: 0,
         });
-        personalQuestions.forEach(q => {
-          if (!q.category || q.category === '') {
-            q.category = `personal_assignment-${student.number}`;
-          }
+      } else {
+        // 根据勾选的班级ID查询学生学号和姓名
+        const { data: students } = await client
+          .from('students')
+          .select('student_number, name, class_id')
+          .in('class_id', class_ids);
+        const studentList = Array.isArray(students) ? students.map(s => ({ number: s.student_number, name: s.name })) : [];
+        console.log(`勾选班级下的学生数量：${studentList.length}`);
+
+        await safeUpdate(client, assignment_id, {
+          personal_status: 'generating',
+          personal_total: studentList.length,
+          personal_completed: 0,
         });
 
-        if (personalQuestions.length > 0) {
-          nextOrder = await saveQuestions(client, assignment_id, personalQuestions, nextOrder, {
-            student_number: student.number,
-            student_name: student.name,
+        let personalCompleted = 0;
+        for (const student of studentList) {
+          console.log(`正在为学生 ${student.number} (${student.name}) 生成个性化作业...`);
+          const personalQuestions = await runWorkflow(accessToken, WORKFLOW_ID_PERSONAL, {
+            knowledge_points: JSON.stringify(knowledge_points || []),
+            id_number: student.number,
           });
+          personalQuestions.forEach(q => {
+            if (!q.category || q.category === '') {
+              q.category = `personal_assignment-${student.number}`;
+            }
+          });
+
+          if (personalQuestions.length > 0) {
+            nextOrder = await saveQuestions(client, assignment_id, personalQuestions, nextOrder, {
+              student_number: student.number,
+              student_name: student.name,
+            });
+          }
+
+          personalCompleted++;
+          await safeUpdate(client, assignment_id, { personal_completed: personalCompleted });
+
+          console.log(`学生 ${student.number} (${student.name}) 生成 ${personalQuestions.length} 题 (${personalCompleted}/${studentList.length})`);
         }
 
-        personalCompleted++;
-        await safeUpdate(client, assignment_id, { personal_completed: personalCompleted });
-
-        console.log(`学生 ${student.number} (${student.name}) 生成 ${personalQuestions.length} 题 (${personalCompleted}/${studentList.length})`);
+        await safeUpdate(client, assignment_id, { personal_status: 'completed' });
       }
-
-      await safeUpdate(client, assignment_id, { personal_status: 'completed' });
     }
 
     // Update overall status

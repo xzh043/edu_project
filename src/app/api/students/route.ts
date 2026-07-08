@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { class_id, student_number, name } = body;
 
-    const operatorName = req.headers.get('x-operator') || 'system';
+    const operatorName = decodeURIComponent(req.headers.get('x-operator') || 'system');
 
     if (!class_id || !student_number?.trim() || !name?.trim()) {
       return NextResponse.json({ error: '请填写完整信息' }, { status: 400 });
@@ -150,7 +150,7 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { id, class_id, student_number, name } = body;
 
-    const operatorName = req.headers.get('x-operator') || 'system';
+    const operatorName = decodeURIComponent(req.headers.get('x-operator') || 'system');
 
     if (!id) {
       return NextResponse.json({ error: '缺少学生ID' }, { status: 400 });

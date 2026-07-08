@@ -62,8 +62,8 @@ export default function SettingsPage() {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   };
 
-  // 获取当前操作人名称
-  const operatorName = user?.name || '';
+  // 获取当前操作人名称（需要编码以支持中文）
+  const operatorName = user?.name ? encodeURIComponent(user.name) : 'system';
 
   // 获取课程列表
   const fetchCourses = useCallback(async () => {

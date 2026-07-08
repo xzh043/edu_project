@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, User, Users, FileText } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface Question {
   id: string;
@@ -19,13 +20,24 @@ interface Question {
   student_name?: string;
 }
 
+interface QuestionGroup {
+  type: 'teacher' | 'class' | 'personal';
+  label: string;
+  icon: React.ElementType;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  questions: Question[];
+}
+
 export default function AnswerPage() {
   const router = useRouter();
   const params = useParams();
   const assignmentId = params.assignmentId as string;
 
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<string>('teacher');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -39,7 +51,7 @@ export default function AnswerPage() {
       // 1. 获取学生信息（班级和学号）
       let studentClassName = '';
       let studentNumber = '';
-      
+
       if (user?.id) {
         const profileRes = await fetch(`/api/student/profile?student_id=${user.id}`);
         if (profileRes.ok) {
@@ -54,37 +66,77 @@ export default function AnswerPage() {
       if (res.ok) {
         const data = await res.json();
         const allQuestions = data.sort((a: Question, b: Question) => a.sort_order - b.sort_order);
-        
-        // 3. 筛选该学生需要作答的题目
-        const filteredQuestions = allQuestions.filter((q: Question) => {
-          // 老师下发作业 - category 为空或为 'teacher_assignment' 或包含"下发作业"或"老师下发作业"
-          if (!q.category || q.category === '' || q.category === 'teacher_assignment' || q.category.includes('下发作业') || q.category.includes('老师下发作业')) {
-            return true;
-          }
-          
-          // 班级共性作业 - category 为 'class_assignment' 或包含"班级共性作业" 且班级匹配
-          if (q.category === 'class_assignment' || q.category.startsWith('class_assignment-') || q.category.includes('班级共性作业')) {
-            const questionClassName = q.class_name || '';
-            return questionClassName === studentClassName;
-          }
-          
-          // 个性化作业 - category 为 'personal_assignment' 或包含"个性化作业" 且学号匹配
-          if (q.category === 'personal_assignment' || q.category.startsWith('personal_assignment-') || q.category.includes('个性化作业')) {
-            const questionStudentNumber = q.student_number || '';
-            return questionStudentNumber === studentNumber;
-          }
-          
-          // 其他情况不显示
-          return false;
+
+        // 3. 分组题目
+        const groups: QuestionGroup[] = [];
+
+        // 老师下发作业
+        const teacherQuestions = allQuestions.filter((q: Question) =>
+          !q.category || q.category === '' || q.category === 'teacher_assignment' || q.category.includes('下发作业') || q.category.includes('老师下发作业')
+        );
+        if (teacherQuestions.length > 0) {
+          groups.push({
+            type: 'teacher',
+            label: '老师下发作业',
+            icon: FileText,
+            color: 'text-blue-600',
+            bgColor: 'bg-blue-50',
+            borderColor: 'border-blue-500',
+            questions: teacherQuestions.map((q: Question, index: number) => ({
+              ...q,
+              question_id: index + 1,
+            })),
+          });
+        }
+
+        // 班级共性作业
+        const classQuestions = allQuestions.filter((q: Question) =>
+          q.category && (q.category === 'class_assignment' || q.category.startsWith('class_assignment-') || q.category.includes('班级共性作业'))
+        ).filter((q: Question) => {
+          const questionClassName = q.class_name || '';
+          return questionClassName === studentClassName;
         });
-        
-        // 4. 重新编号题号（从1开始）
-        const reorderedQuestions = filteredQuestions.map((q: Question, index: number) => ({
-          ...q,
-          question_id: index + 1,
-        }));
-        
-        setQuestions(reorderedQuestions);
+        if (classQuestions.length > 0) {
+          groups.push({
+            type: 'class',
+            label: '班级共性作业',
+            icon: Users,
+            color: 'text-green-600',
+            bgColor: 'bg-green-50',
+            borderColor: 'border-green-500',
+            questions: classQuestions.map((q: Question, index: number) => ({
+              ...q,
+              question_id: index + 1,
+            })),
+          });
+        }
+
+        // 个性化作业
+        const personalQuestions = allQuestions.filter((q: Question) =>
+          q.category && (q.category === 'personal_assignment' || q.category.startsWith('personal_assignment-') || q.category.includes('个性化作业'))
+        ).filter((q: Question) => {
+          const questionStudentNumber = q.student_number || '';
+          return questionStudentNumber === studentNumber;
+        });
+        if (personalQuestions.length > 0) {
+          groups.push({
+            type: 'personal',
+            label: '个性化作业',
+            icon: User,
+            color: 'text-purple-600',
+            bgColor: 'bg-purple-50',
+            borderColor: 'border-purple-500',
+            questions: personalQuestions.map((q: Question, index: number) => ({
+              ...q,
+              question_id: index + 1,
+            })),
+          });
+        }
+
+        setQuestionGroups(groups);
+        if (groups.length > 0) {
+          setActiveTab(groups[0].type);
+        }
       }
     } catch (e) {
       console.error('获取题目失败:', e);
@@ -101,9 +153,14 @@ export default function AnswerPage() {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
   };
 
+  // 获取当前tab的所有题目
+  const currentGroup = questionGroups.find(g => g.type === activeTab);
+  const currentQuestions = currentGroup?.questions || [];
+  const currentQuestion = currentQuestions[currentIndex];
+
+  // 计算总答题数
   const answeredCount = Object.keys(answers).length;
-  const totalCount = questions.length;
-  const currentQuestion = questions[currentIndex];
+  const totalCount = questionGroups.reduce((sum, g) => sum + g.questions.length, 0);
 
   const handleSubmit = async () => {
     if (!user?.id) return;
@@ -134,6 +191,12 @@ export default function AnswerPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // 切换tab时重置题号
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setCurrentIndex(0);
   };
 
   if (loading) {
@@ -171,7 +234,7 @@ export default function AnswerPage() {
     );
   }
 
-  if (questions.length === 0) {
+  if (questionGroups.length === 0) {
     return (
       <div className="flex min-h-[calc(100vh-120px)] flex-col items-center justify-center px-6">
         <AlertCircle className="mb-3 h-12 w-12 text-gray-300" />
@@ -190,7 +253,7 @@ export default function AnswerPage() {
           返回
         </button>
         <span className="text-sm font-medium text-[#1a1a2e]">
-          {currentIndex + 1} / {totalCount}
+          {currentGroup?.label} · 第 {currentIndex + 1} / {currentQuestions.length} 题
         </span>
         <span className="text-xs text-muted-foreground">
           已答 {answeredCount}/{totalCount}
@@ -205,12 +268,36 @@ export default function AnswerPage() {
         />
       </div>
 
+      {/* 标签页 */}
+      <div className="bg-white border-b border-border/50 px-4 py-3">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <TabsList className="grid w-full grid-cols-3 gap-2">
+            {questionGroups.map(group => (
+              <TabsTrigger
+                key={group.type}
+                value={group.type}
+                className="flex items-center gap-1.5 data-[state=active]:bg-[#1e3a5f] data-[state=active]:text-white"
+              >
+                <group.icon className="h-4 w-4" />
+                <span className="text-xs">{group.label}</span>
+                <span className={`text-xs ${activeTab === group.type ? 'text-white/80' : 'text-gray-500'}`}>
+                  ({group.questions.length})
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
+
       {/* 题目区域 */}
       <div className="flex-1 overflow-auto px-4 py-5">
-        {currentQuestion && (
+        {currentQuestion && currentGroup && (
           <div>
             {/* 题目类型和题号 */}
             <div className="mb-3 flex items-center gap-2">
+              <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${currentGroup.bgColor} ${currentGroup.color}`}>
+                {currentGroup.label}
+              </span>
               <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
                 currentQuestion.type === 2
                   ? 'bg-orange-100 text-orange-700'
@@ -219,20 +306,6 @@ export default function AnswerPage() {
                 {currentQuestion.type === 2 ? '判断题' : '选择题'}
               </span>
               <span className="text-sm font-medium text-muted-foreground">第 {currentQuestion.question_id} 题</span>
-              {/* 显示作业类型 */}
-              {currentQuestion.category && currentQuestion.category !== '' && (() => {
-                if (currentQuestion.category.includes('老师下发作业') || currentQuestion.category === 'teacher_assignment') {
-                  return null;
-                }
-                const isClass = currentQuestion.category.includes('班级共性作业') || currentQuestion.category.startsWith('class_assignment');
-                return (
-                  <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
-                    isClass ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
-                  }`}>
-                    {isClass ? '班级共性作业' : '个性化作业'}
-                  </span>
-                );
-              })()}
             </div>
 
             {/* 题目内容 */}
@@ -250,7 +323,7 @@ export default function AnswerPage() {
                     onClick={() => handleAnswer(currentQuestion.id, opt.key)}
                     className={`flex w-full items-center gap-3 rounded-xl border-2 p-4 text-left transition-all ${
                       isSelected
-                        ? 'border-[#1e3a5f] bg-[#1e3a5f]/5'
+                        ? `border-[#1e3a5f] bg-[#1e3a5f]/5`
                         : 'border-border/50 bg-white hover:border-[#1e3a5f]/30'
                     }`}
                   >
@@ -274,9 +347,9 @@ export default function AnswerPage() {
 
       {/* 底部操作区 */}
       <div className="border-t border-border/50 bg-white px-4 py-3">
-        {/* 题号导航 */}
+        {/* 题号导航 - 只显示当前tab的题目 */}
         <div className="mb-3 flex flex-wrap gap-1.5">
-          {questions.map((q, idx) => (
+          {currentQuestions.map((q, idx) => (
             <button
               key={q.id}
               onClick={() => setCurrentIndex(idx)}
@@ -302,16 +375,33 @@ export default function AnswerPage() {
             <ChevronLeft className="h-4 w-4" /> 上一题
           </button>
 
-          {currentIndex === totalCount - 1 ? (
-            <button
-              onClick={() => setShowConfirm(true)}
-              className="rounded-lg bg-[#1e3a5f] px-6 py-2 text-sm font-medium text-white"
-            >
-              提交答案
-            </button>
+          {currentIndex === currentQuestions.length - 1 ? (
+            // 判断是否是最后一个tab的最后一题
+            activeTab === questionGroups[questionGroups.length - 1].type ? (
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="rounded-lg bg-[#1e3a5f] px-6 py-2 text-sm font-medium text-white"
+              >
+                提交答案
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  // 跳转到下一个tab
+                  const currentGroupIndex = questionGroups.findIndex(g => g.type === activeTab);
+                  if (currentGroupIndex < questionGroups.length - 1) {
+                    setActiveTab(questionGroups[currentGroupIndex + 1].type);
+                    setCurrentIndex(0);
+                  }
+                }}
+                className="flex items-center gap-1 rounded-lg bg-[#1e3a5f] px-4 py-2 text-sm font-medium text-white"
+              >
+                下一部分 <ChevronRight className="h-4 w-4" />
+              </button>
+            )
           ) : (
             <button
-              onClick={() => setCurrentIndex(Math.min(totalCount - 1, currentIndex + 1))}
+              onClick={() => setCurrentIndex(Math.min(currentQuestions.length - 1, currentIndex + 1))}
               className="flex items-center gap-1 rounded-lg bg-[#1e3a5f] px-4 py-2 text-sm font-medium text-white"
             >
               下一题 <ChevronRight className="h-4 w-4" />
@@ -331,6 +421,19 @@ export default function AnswerPage() {
                 <span className="text-orange-500">（还有 {totalCount - answeredCount} 题未作答）</span>
               )}
             </p>
+            <div className="mb-4 space-y-1">
+              {questionGroups.map(group => {
+                const groupAnswered = group.questions.filter(q => answers[q.id]).length;
+                return (
+                  <div key={group.type} className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">{group.label}</span>
+                    <span className={groupAnswered === group.questions.length ? 'text-green-600' : 'text-orange-500'}>
+                      {groupAnswered}/{group.questions.length}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowConfirm(false)}

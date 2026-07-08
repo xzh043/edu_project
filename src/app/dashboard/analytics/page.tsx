@@ -3,17 +3,25 @@
 import { useEffect, useState } from 'react';
 import {
   BarChart3, TrendingUp, Users, BookOpen, PieChart as PieChartIcon,
-  ChevronDown, Award, Loader2, AlertCircle,
+  ChevronDown, Award, Loader2, AlertCircle, X,
 } from 'lucide-react';
 import { AssignmentDetailDialog } from '@/components/assignment-detail-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface SummaryData {
   chapters: string[];
   classes: string[];
   chapter_accuracy: { chapter: string; accuracy_rate: number; correct: number; total: number }[];
   assignment_stats: {
-    id: string; name: string; type: string; chapters: string[];
+    id: string; name: string; type: string; chapters: string[]; knowledge_points: string[];
     total_students: number; completed_count: number; completion_rate: number; avg_score_rate: number;
+    avg_score: number; max_score: number;
   }[];
   student_rankings: {
     student_id: string; student_number: string; name: string; class_name: string;
@@ -68,8 +76,43 @@ export default function AnalyticsPage() {
   const [distribution, setDistribution] = useState<DistributionData | null>(null);
   const [distLoading, setDistLoading] = useState(false);
 
+  // 作业筛选状态
+  const [assignmentTypeFilter, setAssignmentTypeFilter] = useState<string>('');
+  const [assignmentChapterFilter, setAssignmentChapterFilter] = useState<string>('');
+  const [assignmentKnowledgeFilter, setAssignmentKnowledgeFilter] = useState<string>('');
+
   const [showDetail, setShowDetail] = useState(false);
   const [detailAssignment, setDetailAssignment] = useState<Assignment | null>(null);
+
+  // 章节作业对话框状态
+  const [showChapterAssignments, setShowChapterAssignments] = useState(false);
+  const [selectedChapterName, setSelectedChapterName] = useState<string>('');
+  const [chapterAssignments, setChapterAssignments] = useState<Array<{
+    id: string; name: string; type: string; avg_score: number; max_score: number; avg_score_rate: number;
+  }>>([]);
+  const [chapterAssignmentTab, setChapterAssignmentTab] = useState<'quiz' | 'homework'>('quiz');
+
+  // 获取所有知识点列表（用于筛选）
+  const allKnowledgePoints = data?.assignment_stats
+    ? Array.from(new Set(data.assignment_stats.flatMap(a => a.knowledge_points))).sort()
+    : [];
+
+  // 点击章节显示作业列表
+  const handleChapterClick = (chapterName: string) => {
+    setSelectedChapterName(chapterName);
+    // 过滤该章节的作业
+    const chapterAssigns = data?.assignment_stats.filter(a => a.chapters.includes(chapterName)) || [];
+    setChapterAssignments(chapterAssigns.map(a => ({
+      id: a.id,
+      name: a.name,
+      type: a.type,
+      avg_score: a.avg_score,
+      max_score: a.max_score,
+      avg_score_rate: a.avg_score_rate,
+    })));
+    setChapterAssignmentTab('quiz');
+    setShowChapterAssignments(true);
+  };
 
   useEffect(() => {
     fetch('/api/analysis/summary')
@@ -119,6 +162,14 @@ export default function AnalyticsPage() {
   }
 
   if (!data) return null;
+
+  // 根据筛选条件过滤作业列表
+  const filteredAssignments = data.assignment_stats.filter(a => {
+    if (assignmentTypeFilter && a.type !== assignmentTypeFilter) return false;
+    if (assignmentChapterFilter && !a.chapters.includes(assignmentChapterFilter)) return false;
+    if (assignmentKnowledgeFilter && !a.knowledge_points.includes(assignmentKnowledgeFilter)) return false;
+    return true;
+  });
 
   const tabs = [
     { key: 'combined' as const, label: '班级整体与作业完成', icon: BarChart3 },
@@ -244,7 +295,11 @@ export default function AnalyticsPage() {
                 {data.chapter_accuracy.length > 0 ? (
                   <div className="space-y-4">
                     {data.chapter_accuracy.map(ch => (
-                      <div key={ch.chapter}>
+                      <div
+                        key={ch.chapter}
+                        className="cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
+                        onClick={() => handleChapterClick(ch.chapter)}
+                      >
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-sm text-gray-700 font-medium truncate max-w-[70%]">{ch.chapter}</span>
                           <span className={`text-sm font-bold ${
@@ -263,7 +318,7 @@ export default function AnalyticsPage() {
                             style={{ width: `${ch.accuracy_rate}%` }}
                           />
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">答对 {ch.correct}/{ch.total} 题</p>
+                        <p className="text-xs text-gray-400 mt-1">答对 {ch.correct}/{ch.total} 题 · 点击查看作业</p>
                       </div>
                     ))}
                   </div>
@@ -277,14 +332,54 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-2 p-6 pb-4">
-                <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                  <TrendingUp className="h-4 w-4 text-blue-600" />
+              <div className="flex items-center justify-between p-6 pb-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <TrendingUp className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900">作业与测评</h3>
                 </div>
-                <h3 className="font-semibold text-gray-900">作业完成情况</h3>
+
+                {/* 筛选器 */}
+                <div className="flex items-center gap-2">
+                  {/* 类型筛选 */}
+                  <select
+                    value={assignmentTypeFilter}
+                    onChange={(e) => setAssignmentTypeFilter(e.target.value)}
+                    className="h-8 px-3 pr-8 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-300"
+                  >
+                    <option value="">全部类型</option>
+                    <option value="quiz">课堂测验</option>
+                    <option value="homework">课后作业</option>
+                  </select>
+
+                  {/* 章节筛选 */}
+                  <select
+                    value={assignmentChapterFilter}
+                    onChange={(e) => setAssignmentChapterFilter(e.target.value)}
+                    className="h-8 px-3 pr-8 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-300"
+                  >
+                    <option value="">全部章节</option>
+                    {data.chapters.map(ch => (
+                      <option key={ch} value={ch}>{ch}</option>
+                    ))}
+                  </select>
+
+                  {/* 知识点筛选 */}
+                  <select
+                    value={assignmentKnowledgeFilter}
+                    onChange={(e) => setAssignmentKnowledgeFilter(e.target.value)}
+                    className="h-8 px-3 pr-8 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-300 max-w-[150px]"
+                  >
+                    <option value="">全部知识点</option>
+                    {allKnowledgePoints.map(kp => (
+                      <option key={kp} value={kp}>{kp}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              {data.assignment_stats.length > 0 ? (
+              {filteredAssignments.length > 0 ? (
                 <div className="overflow-auto">
                   <table className="w-full">
                     <thead className="sticky top-0 bg-white">
@@ -292,15 +387,17 @@ export default function AnalyticsPage() {
                         <th className="text-left text-xs font-medium text-gray-500 px-6 py-3">作业名称</th>
                         <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">类型</th>
                         <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">所属章节</th>
+                        <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">知识点</th>
                         <th className="text-center text-xs font-medium text-gray-500 px-4 py-3">完成率</th>
+                        <th className="text-center text-xs font-medium text-gray-500 px-4 py-3">平均分</th>
                         <th className="text-center text-xs font-medium text-gray-500 px-4 py-3">平均得分率</th>
                         <th className="text-center text-xs font-medium text-gray-500 px-4 py-3">完成/总人数</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.assignment_stats.map(a => (
-                        <tr 
-                          key={a.id} 
+                      {filteredAssignments.map(a => (
+                        <tr
+                          key={a.id}
                           className="border-t border-gray-50 hover:bg-gray-50/50 cursor-pointer"
                           onClick={() => handleAssignmentClick(a.id)}
                         >
@@ -316,6 +413,9 @@ export default function AnalyticsPage() {
                           </td>
                           <td className="px-4 py-3">
                             <span className="text-sm text-gray-600">{a.chapters?.join('、') || '-'}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-sm text-gray-600">{a.knowledge_points?.join('、') || '-'}</span>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-2">
@@ -337,6 +437,11 @@ export default function AnalyticsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-center">
+                            <span className="text-sm text-gray-700 font-medium">
+                              {a.avg_score}/{a.max_score}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
                             <span className={`text-sm font-semibold ${
                               a.avg_score_rate >= 60 ? 'text-green-600' :
                               a.avg_score_rate >= 40 ? 'text-amber-600' : 'text-red-600'
@@ -355,7 +460,7 @@ export default function AnalyticsPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-48 text-gray-400 pb-6">
                   <TrendingUp className="h-10 w-10 mb-2 opacity-40" />
-                  <p className="text-sm">暂无已发布作业</p>
+                  <p className="text-sm">暂无符合筛选条件的作业</p>
                 </div>
               )}
             </div>
@@ -369,6 +474,101 @@ export default function AnalyticsPage() {
         onOpenChange={setShowDetail}
         assignment={detailAssignment}
       />
+
+      {/* 章节作业对话框 */}
+      <Dialog open={showChapterAssignments} onOpenChange={setShowChapterAssignments}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-green-600" />
+              {selectedChapterName} - 作业与测验列表
+            </DialogTitle>
+          </DialogHeader>
+
+          <Tabs value={chapterAssignmentTab} onValueChange={(v) => setChapterAssignmentTab(v as 'quiz' | 'homework')}>
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="quiz">课堂测验</TabsTrigger>
+              <TabsTrigger value="homework">课后作业</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="quiz" className="mt-0">
+              {chapterAssignments.filter(a => a.type === 'quiz').length > 0 ? (
+                <div className="space-y-3">
+                  {chapterAssignments.filter(a => a.type === 'quiz').map(a => (
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => {
+                        setShowChapterAssignments(false);
+                        handleAssignmentClick(a.id);
+                      }}
+                    >
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-gray-900">{a.name}</h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          平均分: <span className="font-medium text-gray-700">{a.avg_score}/{a.max_score}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-bold ${
+                          a.avg_score_rate >= 60 ? 'text-green-600' :
+                          a.avg_score_rate >= 40 ? 'text-amber-600' : 'text-red-600'
+                        }`}>
+                          {a.avg_score_rate}%
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-gray-400 rotate-[-90deg]" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+                  <TrendingUp className="h-8 w-8 mb-2 opacity-40" />
+                  <p className="text-sm">该章节暂无课堂测验</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="homework" className="mt-0">
+              {chapterAssignments.filter(a => a.type === 'homework').length > 0 ? (
+                <div className="space-y-3">
+                  {chapterAssignments.filter(a => a.type === 'homework').map(a => (
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => {
+                        setShowChapterAssignments(false);
+                        handleAssignmentClick(a.id);
+                      }}
+                    >
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-gray-900">{a.name}</h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          平均分: <span className="font-medium text-gray-700">{a.avg_score}/{a.max_score}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-bold ${
+                          a.avg_score_rate >= 60 ? 'text-green-600' :
+                          a.avg_score_rate >= 40 ? 'text-amber-600' : 'text-red-600'
+                        }`}>
+                          {a.avg_score_rate}%
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-gray-400 rotate-[-90deg]" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+                  <TrendingUp className="h-8 w-8 mb-2 opacity-40" />
+                  <p className="text-sm">该章节暂无课后作业</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

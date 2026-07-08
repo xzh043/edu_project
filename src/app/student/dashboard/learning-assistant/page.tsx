@@ -23,12 +23,14 @@ export default function LearningAssistantPage() {
       let userInfo = undefined;
       let studentId = '';
       let studentName = '';
+      let className = '';
       try {
         const userStr = localStorage.getItem('edu_user');
         if (userStr) {
           const user = JSON.parse(userStr);
           studentId = user.student_id || '';
           studentName = user.name || '';
+          className = user.class_name || '';
           if (studentId && studentName) {
             userInfo = {
               id: studentId,
@@ -47,7 +49,8 @@ export default function LearningAssistantPage() {
           bot_id: '7658589656686510099',
           botInfo: {
             parameters: {
-              id_number: studentId
+              id_number: studentId,
+              class: className
             }
           }
         },

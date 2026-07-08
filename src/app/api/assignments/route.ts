@@ -1,14 +1,35 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-// GET /api/assignments?type=quiz|homework
+// GET /api/assignments?type=quiz|homework&id=xxx
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const keyword = searchParams.get('keyword');
+    const id = searchParams.get('id'); // 新增：支持按 ID 查询
 
     const client = await getSupabaseClient();
+
+    // 如果提供了 ID，直接返回单个作业
+    if (id) {
+      const { data: assignment, error } = await client
+        .from('assignments')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      if (!assignment) {
+        return NextResponse.json({ error: '作业不存在' }, { status: 404 });
+      }
+
+      return NextResponse.json([assignment]); // 返回数组格式，保持一致性
+    }
+
     let query = client
       .from('assignments')
       .select('*')
@@ -88,7 +109,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const operator = request.headers.get('x-operator') || 'system';
+    const operator = decodeURIComponent(request.headers.get('x-operator') || 'system');
 
     const {
       name,
@@ -100,6 +121,8 @@ export async function POST(request: Request) {
       ppt_file_url,
       ppt_file_id,
       deadline,
+      requirements, // 作业要求
+      class_ids, // 关联班级ID数组
     } = body;
 
     if (!name || !type) {
@@ -120,6 +143,14 @@ export async function POST(request: Request) {
       status: 'generating',
       created_by: operator,
     };
+
+    // 新增字段（需要先在 Supabase 执行 SQL）
+    if (requirements !== undefined) {
+      insertData.requirements = requirements;
+    }
+    if (class_ids !== undefined) {
+      insertData.class_ids = class_ids;
+    }
 
     // Try adding progress columns (may not exist before migration)
     try {
@@ -155,8 +186,8 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const operator = request.headers.get('x-operator') || 'system';
-    const { id, name, type, chapters, knowledge_points, xzt_cnt, pdt_cnt, deadline } = body;
+    const operator = decodeURIComponent(request.headers.get('x-operator') || 'system');
+    const { id, name, type, chapters, knowledge_points, xzt_cnt, pdt_cnt, deadline, requirements, class_ids } = body;
 
     if (!id) {
       return NextResponse.json({ error: '缺少作业ID' }, { status: 400 });
@@ -191,6 +222,8 @@ export async function PUT(request: Request) {
     if (xzt_cnt !== undefined) updateData.xzt_cnt = xzt_cnt;
     if (pdt_cnt !== undefined) updateData.pdt_cnt = pdt_cnt;
     if (deadline !== undefined) updateData.deadline = deadline;
+    if (requirements !== undefined) updateData.requirements = requirements;
+    if (class_ids !== undefined) updateData.class_ids = class_ids;
 
     const { data, error } = await client
       .from('assignments')

@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
         const assignmentIds = [...new Set((questionDetails || []).map(q => q.assignment_id))];
         const { data: assignmentDetails } = await supabase
           .from('assignments')
-          .select('id, name, type')
+          .select('id, name, type, chapters, knowledge_points')
           .in('id', assignmentIds);
 
         const assignMap = new Map((assignmentDetails || []).map(a => [a.id, a]));
@@ -199,6 +199,8 @@ export async function GET(request: NextRequest) {
             assignment_name: a?.name || '未知作业',
             assignment_type: a?.type || '',
             submitted_at: subId ? (subMap.get(subId) || null) : null,
+            chapters: a?.chapters || [],
+            knowledge_points: a?.knowledge_points || [],
           });
         }
       }

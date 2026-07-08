@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, CheckCircle2, Clock, ChevronRight, BookOpen, Scan } from 'lucide-react';
+import { FileText, CheckCircle2, Clock, ChevronRight, BookOpen, Scan, ChevronDown } from 'lucide-react';
 
 interface StudentAssignment {
   assignment_id: string;
@@ -16,6 +16,7 @@ interface StudentAssignment {
   publish_time: string | null;
   created_by: string;
   created_at: string;
+  requirements: string | null; // 作业要求
   submission_id: string | null;
   submission_status: string | null;
   total_score: number | null;
@@ -30,6 +31,7 @@ export default function TasksPage() {
   const [pendingList, setPendingList] = useState<StudentAssignment[]>([]);
   const [completedList, setCompletedList] = useState<StudentAssignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [typeFilter, setTypeFilter] = useState<string>(''); // 类型筛选
 
   const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('edu_user') || 'null') : null;
 
@@ -89,6 +91,15 @@ export default function TasksPage() {
     return new Date(deadline).getTime() < Date.now();
   };
 
+  // 根据筛选条件过滤列表
+  const filteredPendingList = typeFilter
+    ? pendingList.filter(a => a.type === typeFilter)
+    : pendingList;
+
+  const filteredCompletedList = typeFilter
+    ? completedList.filter(a => a.type === typeFilter)
+    : completedList;
+
   if (loading) {
     return (
       <div className="flex min-h-[calc(100vh-120px)] items-center justify-center">
@@ -100,61 +111,85 @@ export default function TasksPage() {
   return (
     <div className="px-4 py-4 pb-24">
 
-      {/* Tab 切换 */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex-1 flex gap-1 rounded-xl bg-muted p-1">
+      {/* Tab 切换和筛选 */}
+      <div className="mb-4 space-y-3">
+        {/* 第一行：Tab切换 + 扫码按钮 */}
+        <div className="flex items-center justify-between">
+          <div className="flex-1 flex gap-1 rounded-xl bg-muted p-1">
+            <button
+              onClick={() => setActiveTab('pending')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-all ${
+                activeTab === 'pending'
+                  ? 'bg-white text-[#1e3a5f] shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Clock className="h-4 w-4" />
+              待完成
+              {filteredPendingList.length > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1e3a5f] px-1.5 text-xs text-white">
+                  {filteredPendingList.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('completed')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-all ${
+                activeTab === 'completed'
+                  ? 'bg-white text-[#1e3a5f] shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              已完成
+              {filteredCompletedList.length > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-green-100 px-1.5 text-xs text-green-700">
+                  {filteredCompletedList.length}
+                </span>
+              )}
+            </button>
+          </div>
           <button
-            onClick={() => setActiveTab('pending')}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-all ${
-              activeTab === 'pending'
-                ? 'bg-white text-[#1e3a5f] shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            onClick={() => router.push('/student/dashboard/tasks/scan')}
+            className="ml-3 flex items-center gap-1.5 rounded-xl bg-[#1e3a5f] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#1e3a5f]/90"
           >
-            <Clock className="h-4 w-4" />
-            待完成
-            {pendingList.length > 0 && (
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1e3a5f] px-1.5 text-xs text-white">
-                {pendingList.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('completed')}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-all ${
-              activeTab === 'completed'
-                ? 'bg-white text-[#1e3a5f] shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            已完成
-            {completedList.length > 0 && (
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-green-100 px-1.5 text-xs text-green-700">
-                {completedList.length}
-              </span>
-            )}
+            <Scan className="h-4 w-4" />
+            扫码
           </button>
         </div>
-        <button
-          onClick={() => router.push('/student/dashboard/tasks/scan')}
-          className="ml-3 flex items-center gap-1.5 rounded-xl bg-[#1e3a5f] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#1e3a5f]/90"
-        >
-          <Scan className="h-4 w-4" />
-          扫码
-        </button>
+
+        {/* 第二行：类型筛选 */}
+        <div className="flex items-center justify-between">
+          <div className="relative">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="appearance-none h-8 px-3 pr-8 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-300"
+            >
+              <option value="">全部类型</option>
+              <option value="quiz">课堂测验</option>
+              <option value="homework">课后作业</option>
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          </div>
+          <span className="text-xs text-muted-foreground">
+            共 {activeTab === 'pending' ? filteredPendingList.length : filteredCompletedList.length} 个作业
+          </span>
+        </div>
       </div>
 
       {/* 待完成列表 */}
       {activeTab === 'pending' && (
         <div className="space-y-3">
-          {pendingList.length === 0 ? (
+          {filteredPendingList.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <CheckCircle2 className="mb-3 h-12 w-12 text-green-300" />
-              <p className="text-sm text-muted-foreground">暂无待完成作业</p>
+              <p className="text-sm text-muted-foreground">
+                {typeFilter ? '暂无该类型的待完成作业' : '暂无待完成作业'}
+              </p>
             </div>
           ) : (
-            pendingList.map((assignment) => (
+            filteredPendingList.map((assignment) => (
               <div
                 key={assignment.assignment_id}
                 className="rounded-xl border border-border/50 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
@@ -176,7 +211,7 @@ export default function TasksPage() {
                   </div>
                 </div>
 
-                <div className="mb-3 flex items-center gap-3 text-xs text-muted-foreground">
+                <div className="mb-2 flex items-center gap-3 text-xs text-muted-foreground">
                   <span>{assignment.xzt_cnt}道选择题</span>
                   <span className="text-border">|</span>
                   <span>{assignment.pdt_cnt}道判断题</span>
@@ -185,6 +220,13 @@ export default function TasksPage() {
                     {formatDeadline(assignment.deadline)}
                   </span>
                 </div>
+
+                {assignment.requirements && (
+                  <div className="mb-2 text-xs text-gray-500">
+                    <span className="font-medium text-gray-600">作业要求：</span>
+                    {assignment.requirements}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
@@ -207,13 +249,15 @@ export default function TasksPage() {
       {/* 已完成列表 */}
       {activeTab === 'completed' && (
         <div className="space-y-3">
-          {completedList.length === 0 ? (
+          {filteredCompletedList.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <FileText className="mb-3 h-12 w-12 text-gray-300" />
-              <p className="text-sm text-muted-foreground">暂无已完成作业</p>
+              <p className="text-sm text-muted-foreground">
+                {typeFilter ? '暂无该类型的已完成作业' : '暂无已完成作业'}
+              </p>
             </div>
           ) : (
-            completedList.map((a) => {
+            filteredCompletedList.map((a) => {
               const scoreRatio = (a.total_score || 0) / (a.max_score || 1);
               const isPassed = scoreRatio >= 0.6;
               return (
@@ -230,6 +274,12 @@ export default function TasksPage() {
                         </span>
                         <h3 className="text-[15px] font-semibold text-[#1a1a2e] line-clamp-1">{a.name}</h3>
                       </div>
+                      {a.requirements && (
+                        <div className="mt-1 text-xs text-gray-500 line-clamp-1">
+                          <span className="font-medium text-gray-600">作业要求：</span>
+                          {a.requirements}
+                        </div>
+                      )}
                     </div>
                     {a.submission_status === 'graded' && (
                       <div className="flex flex-col items-center shrink-0">

@@ -13,10 +13,10 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // 1. 获取作业信息
+    // 1. 获取作业信息（包含关联班级）
     const { data: assignment, error: assignError } = await supabase
       .from('assignments')
-      .select('id, name, type, status, chapters, knowledge_points, xzt_cnt, pdt_cnt, deadline, publish_time, created_by, created_at')
+      .select('id, name, type, status, chapters, knowledge_points, xzt_cnt, pdt_cnt, deadline, publish_time, created_by, created_at, class_ids')
       .eq('id', assignmentId)
       .maybeSingle();
 
@@ -31,10 +31,18 @@ export async function GET(request: NextRequest) {
       .eq('assignment_id', assignmentId)
       .order('sort_order', { ascending: true });
 
-    // 3. 获取所有班级
-    const { data: classes } = await supabase
-      .from('classes')
-      .select('id, name');
+    // 3. 获取关联班级（只查询作业关联的班级）
+    let classes: any[] = [];
+    if (assignment.class_ids && assignment.class_ids.length > 0) {
+      const { data: classData } = await supabase
+        .from('classes')
+        .select('id, name')
+        .in('id', assignment.class_ids);
+      classes = classData || [];
+    } else {
+      // 如果没有关联班级，不返回班级统计
+      classes = [];
+    }
 
     // 4. 获取所有学生
     const { data: allStudents } = await supabase
@@ -94,13 +102,15 @@ export async function GET(request: NextRequest) {
       const submittedCount = classSubmissions.length;
       const completionRate = totalStudents > 0 ? Math.round((submittedCount / totalStudents) * 1000) / 10 : 0;
 
-      // 统计分数
-      const scores = classSubmissions.map(s => Number(s.total_score) || 0);
-      const maxScores = classSubmissions.map(s => Number(s.max_score) || 0);
+      // 统计分数 - 转换为100分制
+      const scoreRates = classSubmissions.map(s => {
+        const mx = Number(s.max_score) || 0;
+        return mx > 0 ? ((Number(s.total_score) || 0) / mx) * 100 : 0;
+      });
       const avgScore = submittedCount > 0
-        ? Math.round(scores.reduce((a, b) => a + b, 0) / submittedCount * 10) / 10
+        ? Math.round(scoreRates.reduce((a, b) => a + b, 0) / submittedCount * 10) / 10
         : 0;
-      const maxScore = submittedCount > 0 ? Math.max(...scores) : 0;
+      const maxScore = submittedCount > 0 ? Math.max(...scoreRates) : 0;
 
       // 及格率（得分率 >= 60%）
       const passCount = classSubmissions.filter(s => {

@@ -28,7 +28,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const client = getSupabaseClient();
-    const operator = req.headers.get('x-operator') || 'system';
+    const operator = decodeURIComponent(req.headers.get('x-operator') || 'system');
 
     const body = await req.json();
     const { chapter_name, knowledge_name } = body;
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const client = getSupabaseClient();
-    const operator = req.headers.get('x-operator') || 'system';
+    const operator = decodeURIComponent(req.headers.get('x-operator') || 'system');
 
     const body = await req.json();
     const { id, chapter_name, knowledge_name } = body;

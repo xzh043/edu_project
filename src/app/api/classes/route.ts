@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
 
 
-    const operatorName = req.headers.get('x-operator') || 'system';
+    const operatorName = decodeURIComponent(req.headers.get('x-operator') || 'system');
 
     const body = await req.json();
     const { name } = body;

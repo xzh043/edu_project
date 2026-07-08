@@ -153,6 +153,7 @@ export default function ResultPage() {
 
   const correctCount = questions.filter(q => q.is_correct === true).length;
   const wrongCount = questions.filter(q => q.is_correct === false).length;
+  const scoreRate = submission ? (submission.max_score > 0 ? (submission.total_score / submission.max_score) * 100 : 0) : 0;
   const unansweredCount = questions.filter(q => q.is_correct === null).length;
 
   return (
@@ -166,12 +167,15 @@ export default function ResultPage() {
         <span className="text-sm font-medium text-[#1a1a2e]">作答结果</span>
       </div>
 
-      {/* 得分概览 */}
+      {/* 得分概览 - 100分制 */}
       <div className="mx-4 mt-4 rounded-2xl bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] p-5 text-white">
         <div className="mb-3 text-sm opacity-80">得分</div>
         <div className="flex items-end gap-1">
-          <span className="text-3xl font-bold">{submission.total_score}</span>
-          <span className="mb-1 text-sm opacity-70">/ {submission.max_score}</span>
+          <span className="text-3xl font-bold">{scoreRate.toFixed(0)}</span>
+          <span className="mb-1 text-sm opacity-70">分</span>
+        </div>
+        <div className="mt-1 text-xs opacity-60">
+          共 {submission.max_score} 题，答对 {submission.total_score} 题
         </div>
         <div className="mt-4 flex gap-4">
           <div className="flex items-center gap-1.5">

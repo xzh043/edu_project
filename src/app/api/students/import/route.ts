@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   try {
     // 使用 service role key，不需要验证 token
     const client = getSupabaseClient();
-    const operatorName = req.headers.get('x-operator') || 'system';
+    const operatorName = decodeURIComponent(req.headers.get('x-operator') || 'system');
 
     // 解析 FormData
     const formData = await req.formData();

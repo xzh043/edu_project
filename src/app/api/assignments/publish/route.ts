@@ -5,7 +5,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 export async function POST(request: Request) {
   try {
     const { id, unpublish } = await request.json();
-    const operator = request.headers.get('x-operator') || 'system';
+    const operator = decodeURIComponent(request.headers.get('x-operator') || 'system');
 
     if (!id) {
       return NextResponse.json({ error: '缺少作业ID' }, { status: 400 });

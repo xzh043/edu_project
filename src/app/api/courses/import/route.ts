@@ -18,7 +18,7 @@ interface CourseImportResult {
 export async function POST(req: NextRequest) {
   try {
     const client = getSupabaseClient();
-    const operator = req.headers.get('x-operator') || 'system';
+    const operator = decodeURIComponent(req.headers.get('x-operator') || 'system');
 
     // 解析 FormData
     const formData = await req.formData();

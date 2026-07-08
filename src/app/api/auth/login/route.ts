@@ -58,6 +58,25 @@ export async function POST(req: NextRequest) {
       console.error('获取用户资料失败:', profileError);
     }
 
+    // 如果是学生，查询班级信息
+    let className = '';
+    if (type === 'student' && profile?.student_id) {
+      const { data: student } = await serviceClient
+        .from('students')
+        .select('class_id')
+        .eq('student_number', profile.student_id)
+        .maybeSingle();
+
+      if (student?.class_id) {
+        const { data: classData } = await serviceClient
+          .from('classes')
+          .select('name')
+          .eq('id', student.class_id)
+          .maybeSingle();
+        className = classData?.name || '';
+      }
+    }
+
     return NextResponse.json({
       success: true,
       user: {
@@ -68,6 +87,7 @@ export async function POST(req: NextRequest) {
         phone: profile?.phone || data.user.user_metadata?.phone || '',
         employee_id: profile?.employee_id || data.user.user_metadata?.employee_id || '',
         student_id: profile?.student_id || data.user.user_metadata?.student_id || '',
+        class_name: className, // 学生班级名称
       },
       session: {
         access_token: data.session.access_token,
