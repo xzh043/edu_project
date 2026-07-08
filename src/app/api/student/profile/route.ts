@@ -199,9 +199,9 @@ export async function GET(request: NextRequest) {
             assignment_name: a?.name || '未知作业',
             assignment_type: a?.type || '',
             submitted_at: subId ? (subMap.get(subId) || null) : null,
-            chapters: a?.chapters || [],
-            knowledge_points: a?.knowledge_points || [],
-          });
+            chapters: (a?.chapters as string[]) || [],
+            knowledge_points: (a?.knowledge_points as string[]) || [],
+          } as any);
         }
       }
     }
