@@ -52,12 +52,20 @@ export async function GET(req: NextRequest) {
     classmateUserIds = classProfiles.map((p: { user_id: string }) => p.user_id);
   }
 
-  // 5. Get all published assignments
+  // 5. Get all published assignments that belong to this student's class
   const assignmentsRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/assignments?status=eq.published&select=id,name,type,created_at&order=created_at.asc`,
+    `${SUPABASE_URL}/rest/v1/assignments?status=eq.published&select=id,name,type,created_at,class_ids&order=created_at.asc`,
     { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } }
   );
-  const assignments = await assignmentsRes.json();
+  const allAssignments = await assignmentsRes.json();
+
+  // Filter assignments: only include assignments that are associated with this student's class
+  const assignments = allAssignments.filter((a: any) => {
+    // 如果作业没有关联班级（旧数据），则包含它（向后兼容）
+    if (!a.class_ids || a.class_ids.length === 0) return true;
+    // 否则，只有当作业关联了该学生所在的班级时才包含
+    return a.class_ids.includes(student.class_id);
+  });
   const totalAssignments = assignments.length;
 
   // 6. Get this student's submissions

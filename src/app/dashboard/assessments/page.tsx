@@ -799,7 +799,7 @@ export default function AssessmentsPage() {
           </div>
           <Button onClick={() => setShowCreate(true)} className="gap-2 bg-[#1e3a5f] text-white hover:bg-[#1e3a5f]/90">
             <Plus className="size-4" />
-            新建作业
+            新建
           </Button>
         </div>
       </div>
@@ -1164,7 +1164,7 @@ export default function AssessmentsPage() {
                 }}
               >
                 <Send className="mr-1 size-4" />
-                发布作业
+                发布
               </Button>
             )}
             {assignments
@@ -1190,7 +1190,7 @@ export default function AssessmentsPage() {
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>新建作业</DialogTitle>
+            <DialogTitle>新建</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* 第一行：作业类型 */}

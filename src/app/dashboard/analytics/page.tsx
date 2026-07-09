@@ -622,18 +622,42 @@ function PieChart({ data }: { data: { knowledge_point: string; count: number }[]
 }
 
 function StudentRankings({ data }: { data: SummaryData }) {
+  const [classFilter, setClassFilter] = useState<string>('');
+
   const rankings = data.student_rankings;
-  const withSubmissions = rankings.filter(s => s.submission_count > 0);
-  const withoutSubmissions = rankings.filter(s => s.submission_count === 0);
+  // 根据班级筛选过滤学生
+  const filteredRankings = classFilter
+    ? rankings.filter(s => s.class_name === classFilter)
+    : rankings;
+
+  const withSubmissions = filteredRankings.filter(s => s.submission_count > 0);
+  const withoutSubmissions = filteredRankings.filter(s => s.submission_count === 0);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-      <div className="flex items-center gap-2 p-6 pb-4">
-        <div className="h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center">
-          <Award className="h-4 w-4 text-purple-600" />
+      <div className="flex items-center justify-between p-6 pb-4">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center">
+            <Award className="h-4 w-4 text-purple-600" />
+          </div>
+          <h3 className="font-semibold text-gray-900">学生排名</h3>
+          <span className="text-xs text-gray-400 ml-1">按综合得分排序</span>
         </div>
-        <h3 className="font-semibold text-gray-900">学生排名</h3>
-        <span className="text-xs text-gray-400 ml-1">按综合得分排序</span>
+
+        {/* 班级筛选 */}
+        <div className="relative">
+          <select
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            className="appearance-none h-8 px-3 pr-8 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-300"
+          >
+            <option value="">全部班级</option>
+            {data.classes?.map((cls: string) => (
+              <option key={cls} value={cls}>{cls}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+        </div>
       </div>
 
       <div className="overflow-auto max-h-[600px]">
