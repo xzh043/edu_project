@@ -224,12 +224,13 @@ export async function POST(request: Request) {
     // 获取作业的章节和知识点信息（用于 workflow 参数）
     const { data: assignment } = await client
       .from('assignments')
-      .select('chapters, knowledge_points')
+      .select('chapters, knowledge_points, type')
       .eq('id', assignment_id)
       .single();
 
     const assignmentChapters = assignment?.chapters || [];
     const assignmentKnowledgePoints = assignment?.knowledge_points || [];
+    const assignmentType = assignment?.type || 'homework'; // 作业类型：quiz（课堂测验）或 homework（课后作业）
 
     // Get current max sort_order for this assignment
     const { data: existingQuestions } = await client
@@ -266,62 +267,75 @@ export async function POST(request: Request) {
       console.log(`老师下发作业生成 ${teacherQuestions.length} 题`);
     }
 
-    if (workflowType === 'class' || workflowType === 'all') {
-      console.log('=== 生成班级共性作业 ===');
+    // 班级共性作业和个性化作业：只有课后作业（homework）才生成，课堂测验（quiz）只生成老师下发作业
+    if (assignmentType === 'homework') {
+      if (workflowType === 'class' || workflowType === 'all') {
+        console.log('=== 生成班级共性作业 ===');
 
-      // 必须勾选班级才能生成班级作业
-      if (!class_ids || class_ids.length === 0) {
-        console.log('未勾选班级，跳过班级作业生成');
-        await safeUpdate(client, assignment_id, {
-          class_status: 'completed',
-          class_total: 0,
-          class_completed: 0,
-        });
-      } else {
-        // 根据勾选的班级ID查询班级名称
-        const { data: classes } = await client
-          .from('classes')
-          .select('id, name')
-          .in('id', class_ids);
-        const classList = Array.isArray(classes) ? classes.map(c => c.name) : [];
-        console.log(`勾选的班级：${classList.join(', ')}`);
-
-        await safeUpdate(client, assignment_id, {
-          class_status: 'generating',
-          class_total: classList.length,
-          class_completed: 0,
-        });
-
-        let classCompleted = 0;
-        for (const className of classList) {
-          console.log(`正在为班级 ${className} 生成共性作业...`);
-          const classQuestions = await runWorkflow(accessToken, WORKFLOW_ID_CLASS, {
-            knowledge_points: JSON.stringify(knowledge_points || []),
-            class: className,
+        // 必须勾选班级才能生成班级作业
+        if (!class_ids || class_ids.length === 0) {
+          console.log('未勾选班级，跳过班级作业生成');
+          await safeUpdate(client, assignment_id, {
+            class_status: 'completed',
+            class_total: 0,
+            class_completed: 0,
           });
-          classQuestions.forEach(q => {
-            if (!q.category || q.category === '') {
-              q.category = `class_assignment-${className}`;
-            }
+        } else {
+          // 根据勾选的班级ID查询班级名称
+          const { data: classes } = await client
+            .from('classes')
+            .select('id, name')
+            .in('id', class_ids);
+          const classList = Array.isArray(classes) ? classes.map(c => c.name) : [];
+          console.log(`勾选的班级：${classList.join(', ')}`);
+
+          await safeUpdate(client, assignment_id, {
+            class_status: 'generating',
+            class_total: classList.length,
+            class_completed: 0,
           });
 
-          if (classQuestions.length > 0) {
-            nextOrder = await saveQuestions(client, assignment_id, classQuestions, nextOrder, {
-              class_name: className,
+          let classCompleted = 0;
+          for (const className of classList) {
+            console.log(`正在为班级 ${className} 生成共性作业...`);
+            const classQuestions = await runWorkflow(accessToken, WORKFLOW_ID_CLASS, {
+              knowledge_points: JSON.stringify(knowledge_points || []),
+              class: className,
             });
+            classQuestions.forEach(q => {
+              if (!q.category || q.category === '') {
+                q.category = `class_assignment-${className}`;
+              }
+            });
+
+            if (classQuestions.length > 0) {
+              nextOrder = await saveQuestions(client, assignment_id, classQuestions, nextOrder, {
+                class_name: className,
+              });
+            }
+
+            classCompleted++;
+            await safeUpdate(client, assignment_id, { class_completed: classCompleted });
+
+            console.log(`班级 ${className} 生成 ${classQuestions.length} 题 (${classCompleted}/${classList.length})`);
           }
 
-          classCompleted++;
-          await safeUpdate(client, assignment_id, { class_completed: classCompleted });
-
-          console.log(`班级 ${className} 生成 ${classQuestions.length} 题 (${classCompleted}/${classList.length})`);
+          await safeUpdate(client, assignment_id, { class_status: 'completed' });
         }
-
-        await safeUpdate(client, assignment_id, { class_status: 'completed' });
       }
+    } else if (workflowType === 'class' || workflowType === 'all') {
+      // 课堂测验：跳过班级共性作业生成
+      console.log('=== 课堂测验，跳过班级共性作业生成 ===');
+      await safeUpdate(client, assignment_id, {
+        class_status: 'completed',
+        class_total: 0,
+        class_completed: 0,
+      });
     }
 
-    if (workflowType === 'personal' || workflowType === 'all') {
+    // 个性化作业：只有课后作业才生成
+    if (assignmentType === 'homework') {
+      if (workflowType === 'personal' || workflowType === 'all') {
       console.log('=== 生成个人个性化作业 ===');
 
       // 必须勾选班级才能生成个性化作业
@@ -375,6 +389,15 @@ export async function POST(request: Request) {
 
         await safeUpdate(client, assignment_id, { personal_status: 'completed' });
       }
+    }
+    } else if (workflowType === 'personal' || workflowType === 'all') {
+      // 课堂测验：跳过个性化作业生成
+      console.log('=== 课堂测验，跳过个性化作业生成 ===');
+      await safeUpdate(client, assignment_id, {
+        personal_status: 'completed',
+        personal_total: 0,
+        personal_completed: 0,
+      });
     }
 
     // Update overall status

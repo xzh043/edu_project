@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Upload, Download, Plus, Pencil, Trash2, KeyRound, User, BookOpen, Settings } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -47,6 +48,9 @@ export default function SettingsPage() {
   const [courseFormError, setCourseFormError] = useState('');
   const [deleteCourseId, setDeleteCourseId] = useState<string | null>(null);
   const [deleteCourseName, setDeleteCourseName] = useState('');
+  // 批量选择
+  const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
+  const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
 
   // 课程导入
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -181,6 +185,47 @@ export default function SettingsPage() {
     } finally {
       setDeleteCourseId(null);
     }
+  };
+
+  // 批量删除课程
+  const handleBatchDeleteCourses = async () => {
+    if (selectedCourseIds.size === 0) return;
+    try {
+      const ids = Array.from(selectedCourseIds);
+      // 逐个删除
+      for (const id of ids) {
+        await fetch(`/api/courses?id=${id}`, {
+          method: 'DELETE',
+          headers: { 'x-operator': operatorName },
+        });
+      }
+      fetchCourses();
+      setSelectedCourseIds(new Set());
+    } catch (err) {
+      console.error('批量删除课程失败:', err);
+    } finally {
+      setBatchDeleteDialogOpen(false);
+    }
+  };
+
+  // 全选/取消全选
+  const handleSelectAll = () => {
+    if (selectedCourseIds.size === courses.length) {
+      setSelectedCourseIds(new Set());
+    } else {
+      setSelectedCourseIds(new Set(courses.map(c => c.id)));
+    }
+  };
+
+  // 选择单个课程
+  const handleSelectCourse = (id: string) => {
+    const newSet = new Set(selectedCourseIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedCourseIds(newSet);
   };
 
   // 下载导入模板
@@ -440,10 +485,31 @@ export default function SettingsPage() {
                   <Download className="mr-2 size-4" />
                   下载模板
                 </Button>
+                {selectedCourseIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setBatchDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="mr-2 size-4" />
+                    批量删除 ({selectedCourseIds.size})
+                  </Button>
+                )}
               </div>
-              <span className="text-sm text-gray-500">
-                共 {Object.keys(groupedCourses).length} 个章节，{courses.length} 个知识点
-              </span>
+              <div className="flex items-center gap-3">
+                {courses.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSelectAll}
+                    className="text-xs"
+                  >
+                    {selectedCourseIds.size === courses.length ? '取消全选' : '全选'}
+                  </Button>
+                )}
+                <span className="text-sm text-gray-500">
+                  共 {Object.keys(groupedCourses).length} 个章节，{courses.length} 个知识点
+                </span>
+              </div>
             </div>
 
             {/* 课程列表 - 按章节分组 */}
@@ -474,6 +540,12 @@ export default function SettingsPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-[50px]">
+                            <Checkbox
+                              checked={selectedCourseIds.size === courses.length}
+                              onCheckedChange={handleSelectAll}
+                            />
+                          </TableHead>
                           <TableHead className="w-[60px] text-gray-600 font-semibold">序号</TableHead>
                           <TableHead className="text-gray-600 font-semibold">知识点名称</TableHead>
                           <TableHead className="text-gray-600 font-semibold">创建人员</TableHead>
@@ -486,6 +558,12 @@ export default function SettingsPage() {
                       <TableBody>
                         {items.map((item, idx) => (
                           <TableRow key={item.id} className="border-gray-50 hover:bg-gray-50">
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedCourseIds.has(item.id)}
+                                onCheckedChange={() => handleSelectCourse(item.id)}
+                              />
+                            </TableCell>
                             <TableCell className="text-gray-400">{idx + 1}</TableCell>
                             <TableCell className="font-medium text-gray-800">{item.knowledge_name}</TableCell>
                             <TableCell className="text-gray-500">{item.created_by || '-'}</TableCell>
@@ -594,6 +672,24 @@ export default function SettingsPage() {
               <AlertDialogFooter>
                 <AlertDialogCancel>取消</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeleteCourse} className="bg-destructive text-white hover:bg-destructive/90">
+                  删除
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* 批量删除确认 AlertDialog */}
+          <AlertDialog open={batchDeleteDialogOpen} onOpenChange={setBatchDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>确认批量删除</AlertDialogTitle>
+                <AlertDialogDescription>
+                  确定要删除已选择的 {selectedCourseIds.size} 个知识点吗？此操作不可撤销。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={handleBatchDeleteCourses} className="bg-destructive text-white hover:bg-destructive/90">
                   删除
                 </AlertDialogAction>
               </AlertDialogFooter>

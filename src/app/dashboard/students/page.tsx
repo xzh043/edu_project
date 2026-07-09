@@ -538,7 +538,7 @@ export default function StudentsPage() {
             }`}
           >
             <Users className="size-4" />
-            无关联班级
+            全部
           </button>
           {classes.map((cls) => (
             <div

@@ -239,6 +239,9 @@ export default function AssessmentsPage() {
   const [activeTab, setActiveTab] = useState('quiz');
   const [keyword, setKeyword] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // 章节和知识点筛选
+  const [chapterFilter, setChapterFilter] = useState('');
+  const [knowledgeFilter, setKnowledgeFilter] = useState('');
 
   // Create dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -810,6 +813,34 @@ export default function AssessmentsPage() {
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">
+          {/* 章节筛选 */}
+          <Select value={chapterFilter} onValueChange={(value) => {
+            setChapterFilter(value === 'all' ? '' : value);
+            setKnowledgeFilter(''); // 切换章节时清空知识点筛选
+          }}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="全部章节" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部章节</SelectItem>
+              {chapterList.map((chapter) => (
+                <SelectItem key={chapter} value={chapter}>{chapter}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* 知识点筛选 */}
+          <Select value={knowledgeFilter} onValueChange={(value) => setKnowledgeFilter(value === 'all' ? '' : value)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="全部知识点" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部知识点</SelectItem>
+              {(chapterFilter ? knowledgeByChapter[chapterFilter] || [] : chapterList.flatMap(ch => knowledgeByChapter[ch] || [])).map((kp) => (
+                <SelectItem key={kp} value={kp}>{kp}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* 搜索框 */}
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 size-4 text-gray-400" />
             <Input
@@ -852,30 +883,38 @@ export default function AssessmentsPage() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={13} className="py-12 text-center text-[var(--muted-foreground)]">
-                  <Loader2 className="mx-auto mb-2 size-6 animate-spin" />
-                  加载中...
-                </td>
-              </tr>
-            ) : assignments.length === 0 ? (
-              <tr>
-                <td colSpan={13} className="py-12 text-center text-[var(--muted-foreground)]">
-                  暂无作业数据
-                </td>
-              </tr>
-            ) : (
-              assignments.map((a) => {
-                const statusInfo = STATUS_MAP[a.status] || STATUS_MAP.generating;
-                const StatusIcon = statusInfo.icon;
-                return (
-                  <tr key={a.id} className="border-b border-gray-50 hover:bg-[#F5F7FA]/60">
-                    <td className="px-4 py-3">
-                      <Checkbox
-                        checked={selectedIds.has(a.id)}
-                        onCheckedChange={() => toggleSelect(a.id)}
-                      />
+            {/* 筛选逻辑 */}
+            {(() => {
+              const filteredAssignments = assignments.filter(a => {
+                if (chapterFilter && !a.chapters.includes(chapterFilter)) return false;
+                if (knowledgeFilter && !a.knowledge_points.includes(knowledgeFilter)) return false;
+                return true;
+              });
+
+              return loading ? (
+                <tr>
+                  <td colSpan={13} className="py-12 text-center text-[var(--muted-foreground)]">
+                    <Loader2 className="mx-auto mb-2 size-6 animate-spin" />
+                    加载中...
+                  </td>
+                </tr>
+              ) : filteredAssignments.length === 0 ? (
+                <tr>
+                  <td colSpan={13} className="py-12 text-center text-[var(--muted-foreground)]">
+                    {chapterFilter || knowledgeFilter ? '暂无符合筛选条件的作业' : '暂无作业数据'}
+                  </td>
+                </tr>
+              ) : (
+                filteredAssignments.map((a) => {
+                  const statusInfo = STATUS_MAP[a.status] || STATUS_MAP.generating;
+                  const StatusIcon = statusInfo.icon;
+                  return (
+                    <tr key={a.id} className="border-b border-gray-50 hover:bg-[#F5F7FA]/60">
+                      <td className="px-4 py-3">
+                        <Checkbox
+                          checked={selectedIds.has(a.id)}
+                          onCheckedChange={() => toggleSelect(a.id)}
+                        />
                     </td>
                     <td className="px-4 py-3 font-medium">{a.name}</td>
                     <td className="px-4 py-3">
@@ -1086,7 +1125,8 @@ export default function AssessmentsPage() {
                   </tr>
                 );
               })
-            )}
+            );
+          })()}
           </tbody>
         </table>
       </Card>

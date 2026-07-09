@@ -270,6 +270,36 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: '已发布的作业不能删除' }, { status: 400 });
     }
 
+    // 先查询该作业的所有题目ID
+    const { data: questions } = await client
+      .from('questions')
+      .select('id')
+      .eq('assignment_id', id);
+
+    // 删除答题记录（question_answers）
+    if (questions && questions.length > 0) {
+      const questionIds = questions.map(q => q.id);
+      const { error: answersError } = await client
+        .from('question_answers')
+        .delete()
+        .in('question_id', questionIds);
+
+      if (answersError) {
+        console.error('删除答题记录失败:', answersError);
+      }
+    }
+
+    // 删除题目（questions）
+    const { error: questionsError } = await client
+      .from('questions')
+      .delete()
+      .eq('assignment_id', id);
+
+    if (questionsError) {
+      console.error('删除题目失败:', questionsError);
+    }
+
+    // 最后删除作业
     const { error } = await client.from('assignments').delete().eq('id', id);
 
     if (error) {

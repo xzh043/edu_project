@@ -22,7 +22,7 @@ export async function GET() {
     const students = await studentsRes.json();
 
     // 3. Get all assignments
-    const assignmentsRes = await fetch(`${SUPABASE_URL}/rest/v1/assignments?select=id,name,type,status,chapters,knowledge_points&order=created_at.desc`, { headers });
+    const assignmentsRes = await fetch(`${SUPABASE_URL}/rest/v1/assignments?select=id,name,type,status,chapters,knowledge_points,class_ids&order=created_at.desc`, { headers });
     const assignments = await assignmentsRes.json();
 
     // 4. Get all submissions
@@ -41,7 +41,13 @@ export async function GET() {
     const publishedAssignments = assignments.filter((a: any) => a.status === 'published');
     const assignmentStats = publishedAssignments.map((a: any) => {
       const aSubs = submissions.filter((s: any) => s.assignment_id === a.id && s.status === 'graded');
-      const totalStudents = students.length;
+
+      // 如果作业关联了班级，只计算该作业关联班级的学生总数
+      let totalStudents = students.length;
+      if (a.class_ids && a.class_ids.length > 0) {
+        totalStudents = students.filter((s: any) => a.class_ids.includes(s.class_id)).length;
+      }
+
       const completedCount = aSubs.length;
       const completionRate = totalStudents > 0 ? Math.round((completedCount / totalStudents) * 100) : 0;
       const avgScoreRate = aSubs.length > 0

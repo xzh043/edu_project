@@ -71,8 +71,11 @@ export async function GET(req: NextRequest) {
       query = `student_number=eq.${studentNumber}`;
     }
 
+    // 如果没有传递 assignmentId，默认查询学生整体学习建议（assignment_id IS NULL）
     if (assignmentId) {
       query += `&assignment_id=eq.${assignmentId}`;
+    } else {
+      query += `&assignment_id=is.null`;
     }
 
     const resp = await fetch(`${supabaseUrl}/rest/v1/ai_suggestions?${query}&order=created_at.desc&limit=10`, {
