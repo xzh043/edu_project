@@ -171,7 +171,7 @@ export async function GET() {
           submission_count: stat.submissionCount,
         };
       })
-      .sort((a: any, b: any) => b.total_score - a.total_score || b.score_rate - a.score_rate);
+      .sort((a: any, b: any) => b.score_rate - a.score_rate || b.total_score - a.total_score);
 
     // ---- Chapters list (for selection) ----
     const chapterSet = new Set<string>();

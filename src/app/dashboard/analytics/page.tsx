@@ -254,12 +254,16 @@ export default function AnalyticsPage() {
                     <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
                   </div>
                 ) : distribution && distribution.distribution.length > 0 ? (
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-start gap-6">
+                    {/* 左侧柱状图：显示前5个知识点 */}
                     <div className="flex-shrink-0">
-                      <PieChart data={distribution.distribution} />
+                      <BarChart data={distribution.distribution} />
                     </div>
+                    {/* 右侧列表：显示全部知识点，按次数降序排列 */}
                     <div className="flex-1 space-y-2 max-h-52 overflow-auto">
-                      {distribution.distribution.map((d, i) => (
+                      {distribution.distribution
+                        .sort((a, b) => b.count - a.count)
+                        .map((d, i) => (
                         <div key={i} className="flex items-center gap-2 text-sm">
                           <span
                             className="h-3 w-3 rounded-sm flex-shrink-0"
@@ -573,50 +577,56 @@ export default function AnalyticsPage() {
   );
 }
 
-function PieChart({ data }: { data: { knowledge_point: string; count: number }[] }) {
+function BarChart({ data }: { data: { knowledge_point: string; count: number }[] }) {
   const total = data.reduce((s, d) => s + d.count, 0);
   if (total === 0) return null;
 
-  const size = 180;
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = 70;
-
-  let currentAngle = -90;
-  const slices = data.map((d, i) => {
-    const angle = (d.count / total) * 360;
-    const startAngle = currentAngle;
-    const endAngle = currentAngle + angle;
-    currentAngle = endAngle;
-
-    const startRad = (startAngle * Math.PI) / 180;
-    const endRad = (endAngle * Math.PI) / 180;
-
-    const x1 = cx + r * Math.cos(startRad);
-    const y1 = cy + r * Math.sin(startRad);
-    const x2 = cx + r * Math.cos(endRad);
-    const y2 = cy + r * Math.sin(endRad);
-
-    const largeArcFlag = angle > 180 ? 1 : 0;
-
-    return {
-      d: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`,
-      fill: PIE_COLORS[i % PIE_COLORS.length],
-    };
-  });
+  const maxCount = Math.max(...data.map(d => d.count));
+  const barWidth = 60;
+  const gap = 16;
+  const chartHeight = 200;
+  const chartWidth = (barWidth + gap) * Math.min(data.length, 5);
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {slices.map((slice, i) => (
-        <path key={i} d={slice.d} fill={slice.fill} />
-      ))}
-      <circle cx={cx} cy={cy} r={40} fill="white" />
-      <text x={cx} y={cy - 4} textAnchor="middle" className="text-xs fill-gray-500">
-        总计
-      </text>
-      <text x={cx} y={cy + 8} textAnchor="middle" className="text-lg font-bold fill-gray-800">
-        {total}
-      </text>
+    <svg width={chartWidth} height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
+      {data.slice(0, 5).map((d, i) => {
+        const barHeight = (d.count / maxCount) * 140;
+        const x = i * (barWidth + gap);
+        const y = chartHeight - barHeight - 40;
+
+        return (
+          <g key={i}>
+            {/* 柱子 */}
+            <rect
+              x={x}
+              y={y}
+              width={barWidth}
+              height={barHeight}
+              fill={PIE_COLORS[i % PIE_COLORS.length]}
+              rx="4"
+            />
+            {/* 次数（柱子上方） */}
+            <text
+              x={x + barWidth / 2}
+              y={y - 12}
+              textAnchor="middle"
+              className="text-sm fill-gray-800 font-bold"
+            >
+              {d.count}次
+            </text>
+            {/* 知识点名称（柱子下方，不截断） */}
+            <text
+              x={x + barWidth / 2}
+              y={chartHeight - 20}
+              textAnchor="middle"
+              className="text-xs fill-gray-700 font-medium"
+              style={{ fontSize: '11px' }}
+            >
+              {d.knowledge_point.length > 10 ? d.knowledge_point.slice(0, 10) + '...' : d.knowledge_point}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }

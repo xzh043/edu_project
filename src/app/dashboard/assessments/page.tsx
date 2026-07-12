@@ -338,7 +338,9 @@ export default function AssessmentsPage() {
       question_number: number;
       type: number;
       title: string;
+      options?: { key: string; text: string }[];
       answer: string;
+      analysis?: string;
       error_count: number;
       total_count: number;
       error_rate: number;
@@ -2130,7 +2132,7 @@ export default function AssessmentsPage() {
                   <p className="text-sm text-gray-400">全部正确，暂无错题</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-3">
                   {detailStats.wrong_ranking.map((w, idx) => (
                     <div key={w.question_id} className="rounded-2xl bg-white shadow-[0_4px_12px_rgba(0,0,0,0.05)] p-5 transition-shadow hover:shadow-md">
                       <div className="flex items-start gap-4">
@@ -2151,15 +2153,54 @@ export default function AssessmentsPage() {
                             </Badge>
                             <span className="text-xs text-gray-400">第 {w.question_number} 题</span>
                           </div>
-                          <p className="text-sm font-medium text-[#1a1a2e] line-clamp-2">{w.title}</p>
-                          <div className="mt-2.5 flex items-center gap-5 text-xs">
+
+                          {/* 题目标题 */}
+                          <p className="text-sm font-medium text-[#1a1a2e] mb-3">{w.title}</p>
+
+                          {/* 选择题选项 */}
+                          {(w.type === 1 || String(w.type) === '1') && w.options && (
+                            (() => {
+                              // 兼容处理：如果options是字符串，先解析成数组
+                              const opts = typeof w.options === 'string' ? JSON.parse(w.options) : w.options;
+                              if (!Array.isArray(opts) || opts.length === 0) return null;
+
+                              return (
+                                <div className="space-y-1.5 mb-3 pl-2">
+                                  {opts.map((opt: any) => (
+                                    <div key={opt.key} className="flex items-start gap-2 text-xs">
+                                      <span className={`font-semibold ${
+                                        opt.key === w.answer ? 'text-green-600' : 'text-gray-600'
+                                      }`}>
+                                        {opt.key}.
+                                      </span>
+                                      <span className={opt.key === w.answer ? 'text-green-600' : 'text-gray-700'}>
+                                        {opt.text}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()
+                          )}
+
+                          {/* 正确答案和解析 */}
+                          <div className="flex items-center gap-5 text-xs mb-2.5">
                             <span className="text-gray-400">正确答案：<span className="font-bold text-emerald-600">{w.answer}</span></span>
                             <span className="text-gray-400">
                               错误：<span className="font-bold text-red-500">{w.error_count}</span>/{w.total_count} 人
                             </span>
                           </div>
+
+                          {/* 解析 */}
+                          {w.analysis && (
+                            <div className="mb-2.5 rounded-lg bg-blue-50 px-3 py-2">
+                              <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">解析</span>
+                              <p className="mt-1 text-xs leading-relaxed text-blue-700">{w.analysis}</p>
+                            </div>
+                          )}
+
                           {/* 错误率进度条 */}
-                          <div className="mt-2.5 flex items-center gap-2.5">
+                          <div className="flex items-center gap-2.5">
                             <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
                               <div
                                 className={`h-full rounded-full transition-all ${

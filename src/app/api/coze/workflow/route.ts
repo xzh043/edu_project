@@ -361,30 +361,60 @@ export async function POST(request: Request) {
           personal_completed: 0,
         });
 
+        // 并发处理学生作业生成，并发数为10
+        const CONCURRENCY_LIMIT = 10;
         let personalCompleted = 0;
-        for (const student of studentList) {
-          console.log(`正在为学生 ${student.number} (${student.name}) 生成个性化作业...`);
-          const personalQuestions = await runWorkflow(accessToken, WORKFLOW_ID_PERSONAL, {
-            knowledge_points: JSON.stringify(knowledge_points || []),
-            id_number: student.number,
-          });
-          personalQuestions.forEach(q => {
-            if (!q.category || q.category === '') {
-              q.category = `personal_assignment-${student.number}`;
-            }
-          });
 
-          if (personalQuestions.length > 0) {
-            nextOrder = await saveQuestions(client, assignment_id, personalQuestions, nextOrder, {
-              student_number: student.number,
-              student_name: student.name,
-            });
+        // 分批处理学生列表
+        for (let i = 0; i < studentList.length; i += CONCURRENCY_LIMIT) {
+          const batch = studentList.slice(i, i + CONCURRENCY_LIMIT);
+          console.log(`处理第 ${i + 1}-${Math.min(i + CONCURRENCY_LIMIT, studentList.length)} 个学生`);
+
+          // 并发生成当前批次的学生作业
+          const batchResults = await Promise.all(
+            batch.map(async (student) => {
+              try {
+                console.log(`正在为学生 ${student.number} (${student.name}) 生成个性化作业...`);
+                const personalQuestions = await runWorkflow(accessToken, WORKFLOW_ID_PERSONAL, {
+                  knowledge_points: JSON.stringify(knowledge_points || []),
+                  id_number: student.number,
+                });
+                personalQuestions.forEach(q => {
+                  if (!q.category || q.category === '') {
+                    q.category = `personal_assignment-${student.number}`;
+                  }
+                });
+
+                return {
+                  student,
+                  questions: personalQuestions,
+                  success: true,
+                };
+              } catch (error) {
+                console.error(`学生 ${student.number} 生成失败:`, error);
+                return {
+                  student,
+                  questions: [],
+                  success: false,
+                };
+              }
+            })
+          );
+
+          // 保存当前批次的结果（顺序保存，确保题目顺序正确）
+          for (const result of batchResults) {
+            if (result.questions.length > 0) {
+              nextOrder = await saveQuestions(client, assignment_id, result.questions, nextOrder, {
+                student_number: result.student.number,
+                student_name: result.student.name,
+              });
+            }
+            personalCompleted++;
+            console.log(`学生 ${result.student.number} (${result.student.name}) 生成 ${result.questions.length} 题 (${personalCompleted}/${studentList.length})`);
           }
 
-          personalCompleted++;
+          // 批量更新进度
           await safeUpdate(client, assignment_id, { personal_completed: personalCompleted });
-
-          console.log(`学生 ${student.number} (${student.name}) 生成 ${personalQuestions.length} 题 (${personalCompleted}/${studentList.length})`);
         }
 
         await safeUpdate(client, assignment_id, { personal_status: 'completed' });

@@ -123,7 +123,9 @@ export function AssignmentDetailDialog({
       question_number: number;
       type: number;
       title: string;
+      options?: { key: string; text: string }[];
       answer: string;
+      analysis?: string;
       error_count: number;
       total_count: number;
       error_rate: number;
@@ -768,7 +770,7 @@ export function AssignmentDetailDialog({
                 <p className="text-sm text-gray-400">全部正确，暂无错题</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 {detailStats.wrong_ranking.map((w, idx) => (
                   <div key={w.question_id} className="rounded-2xl bg-white shadow-[0_4px_12px_rgba(0,0,0,0.05)] p-5 transition-shadow hover:shadow-md">
                     <div className="flex items-start gap-4">
@@ -789,10 +791,49 @@ export function AssignmentDetailDialog({
                             错误率: {w.error_rate}% ({w.error_count}/{w.total_count})
                           </span>
                         </div>
-                        <p className="text-sm text-gray-800">{w.title}</p>
-                        <p className="mt-2 text-xs text-gray-500">
-                          <span className="font-medium">正确答案：</span>{w.answer}
-                        </p>
+
+                        {/* 题目标题 */}
+                        <p className="text-sm text-gray-800 mb-3 font-medium">{w.title}</p>
+
+                        {/* 选择题选项 */}
+                        {(w.type === 1 || String(w.type) === '1') && w.options && (
+                          (() => {
+                            // 兼容处理：如果options是字符串，先解析成数组
+                            const opts = typeof w.options === 'string' ? JSON.parse(w.options) : w.options;
+                            if (!Array.isArray(opts) || opts.length === 0) return null;
+
+                            return (
+                              <div className="space-y-1.5 mb-3 pl-2">
+                                {opts.map((opt: any) => (
+                                  <div key={opt.key} className="flex items-start gap-2 text-xs">
+                                    <span className={`font-semibold ${
+                                      opt.key === w.answer ? 'text-green-600' : 'text-gray-600'
+                                    }`}>
+                                      {opt.key}.
+                                    </span>
+                                    <span className={opt.key === w.answer ? 'text-green-600' : 'text-gray-700'}>
+                                      {opt.text}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()
+                        )}
+
+                        {/* 正确答案和解析 */}
+                        <div className="space-y-1.5">
+                          <p className="text-xs text-gray-500">
+                            <span className="font-medium text-gray-700">正确答案：</span>
+                            <span className="text-green-600 font-semibold">{w.answer}</span>
+                          </p>
+                          {w.analysis && (
+                            <p className="text-xs text-gray-500">
+                              <span className="font-medium text-gray-700">解析：</span>
+                              {w.analysis}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -70,9 +70,16 @@ export async function GET(request: Request) {
         const studentNumberToUserId = new Map((profiles || []).map(p => [p.student_id, p.user_id]));
         const submissionByUserId = new Map((submissions || []).map(s => [s.student_id, s]));
 
-        const totalStudents = (allStudents || []).length;
+        // 根据作业关联班级过滤学生总数
+        let filteredStudents = (allStudents || []);
+        if (assignment.class_ids && assignment.class_ids.length > 0) {
+          filteredStudents = filteredStudents.filter(s => assignment.class_ids.includes(s.class_id));
+        }
 
-        const submittedCount = (allStudents || []).filter(s => {
+        const totalStudents = filteredStudents.length;
+
+        // 只统计关联班级的学生提交情况
+        const submittedCount = filteredStudents.filter(s => {
           const userId = studentNumberToUserId.get(s.student_number);
           if (userId) {
             const sub = submissionByUserId.get(userId);
@@ -83,15 +90,27 @@ export async function GET(request: Request) {
           return false;
         }).length;
 
-        const gradedSubmissions = submissions.filter(
-          (s) => s.status === 'graded' && s.total_score !== null && s.max_score !== null && s.max_score > 0
-        );
+        // 只统计关联班级学生的已批改提交
+        const gradedSubmissions: typeof submissions = [];
+        for (const s of filteredStudents) {
+          const userId = studentNumberToUserId.get(s.student_number);
+          if (userId) {
+            const sub = submissionByUserId.get(userId);
+            if (sub && sub.status === 'graded' && sub.total_score !== null && sub.max_score !== null && sub.max_score > 0) {
+              gradedSubmissions.push(sub);
+            }
+          }
+        }
 
         const completionRate = totalStudents > 0 ? Math.round((submittedCount / totalStudents) * 100) : 0;
+
+        // 平均分使用100分制（得分率）
+        const scoreRates = gradedSubmissions.map(s => {
+          const mx = Number(s.max_score) || 0;
+          return mx > 0 ? ((Number(s.total_score) || 0) / mx) * 100 : 0;
+        });
         const avgScore = gradedSubmissions.length > 0
-          ? Math.round(
-              gradedSubmissions.reduce((sum, s) => sum + (s.total_score || 0), 0) / gradedSubmissions.length
-            )
+          ? Math.round(scoreRates.reduce((sum, rate) => sum + rate, 0) / gradedSubmissions.length * 10) / 10
           : 0;
 
         return { ...assignment, completion_rate: completionRate, avg_score: avgScore };
