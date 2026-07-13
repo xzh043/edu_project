@@ -210,7 +210,7 @@ export default function AnalyticsPage() {
       <div className="flex-1 overflow-auto p-6">
         {activeTab === 'combined' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-[2fr_1fr] gap-6">
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -254,11 +254,9 @@ export default function AnalyticsPage() {
                     <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
                   </div>
                 ) : distribution && distribution.distribution.length > 0 ? (
-                  <div className="flex items-start gap-6">
+                  <div className="flex items-start gap-8">
                     {/* 左侧柱状图：显示前5个知识点 */}
-                    <div className="flex-shrink-0">
-                      <BarChart data={distribution.distribution} />
-                    </div>
+                    <BarChart data={distribution.distribution} />
                     {/* 右侧列表：显示全部知识点，按次数降序排列 */}
                     <div className="flex-1 space-y-2 max-h-52 overflow-auto">
                       {distribution.distribution
@@ -582,52 +580,32 @@ function BarChart({ data }: { data: { knowledge_point: string; count: number }[]
   if (total === 0) return null;
 
   const maxCount = Math.max(...data.map(d => d.count));
-  const barWidth = 60;
-  const gap = 16;
-  const chartHeight = 200;
-  const chartWidth = (barWidth + gap) * Math.min(data.length, 5);
+  const maxBarHeight = 140;
 
   return (
-    <svg width={chartWidth} height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
-      {data.slice(0, 5).map((d, i) => {
-        const barHeight = (d.count / maxCount) * 140;
-        const x = i * (barWidth + gap);
-        const y = chartHeight - barHeight - 40;
-
-        return (
-          <g key={i}>
-            {/* 柱子 */}
-            <rect
-              x={x}
-              y={y}
-              width={barWidth}
-              height={barHeight}
-              fill={PIE_COLORS[i % PIE_COLORS.length]}
-              rx="4"
-            />
-            {/* 次数（柱子上方） */}
-            <text
-              x={x + barWidth / 2}
-              y={y - 12}
-              textAnchor="middle"
-              className="text-sm fill-gray-800 font-bold"
-            >
-              {d.count}次
-            </text>
-            {/* 知识点名称（柱子下方，不截断） */}
-            <text
-              x={x + barWidth / 2}
-              y={chartHeight - 20}
-              textAnchor="middle"
-              className="text-xs fill-gray-700 font-medium"
-              style={{ fontSize: '11px' }}
-            >
-              {d.knowledge_point.length > 10 ? d.knowledge_point.slice(0, 10) + '...' : d.knowledge_point}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+    <div className="flex items-end justify-center gap-6 h-[260px] pt-6">
+      {data.slice(0, 5).map((d, i) => (
+        <div key={i} className="flex flex-col items-center" style={{ width: '72px' }}>
+          {/* 次数（柱子上方） */}
+          <span className="text-sm font-bold text-gray-800 mb-2 whitespace-nowrap">
+            {d.count}次
+          </span>
+          {/* 柱子 */}
+          <div
+            className="w-full rounded-t-md flex-shrink-0"
+            style={{
+              height: `${(d.count / maxCount) * maxBarHeight}px`,
+              minHeight: '16px',
+              backgroundColor: PIE_COLORS[i % PIE_COLORS.length]
+            }}
+          />
+          {/* 知识点名称（柱子下方，多行显示） */}
+          <div className="text-xs text-gray-700 text-center mt-3 w-full leading-tight break-words min-h-[48px]">
+            {d.knowledge_point}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
