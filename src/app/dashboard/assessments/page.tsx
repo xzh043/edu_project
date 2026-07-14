@@ -1700,8 +1700,8 @@ export default function AssessmentsPage() {
                                   {/* KPI 卡片 */}
                                   <div className="grid grid-cols-4 gap-3">
                                     {[
-                                      { label: '平均分', value: cls.avg_score, icon: BarChart3, bg: 'from-blue-50 to-blue-100/40', iconColor: 'text-blue-500', valueColor: 'text-blue-700' },
-                                      { label: '最高分', value: cls.max_score, icon: Trophy, bg: 'from-amber-50 to-amber-100/40', iconColor: 'text-amber-500', valueColor: 'text-amber-700' },
+                                      { label: '平均分', value: cls.avg_score.toFixed(1), icon: BarChart3, bg: 'from-blue-50 to-blue-100/40', iconColor: 'text-blue-500', valueColor: 'text-blue-700' },
+                                      { label: '最高分', value: cls.max_score.toFixed(1), icon: Trophy, bg: 'from-amber-50 to-amber-100/40', iconColor: 'text-amber-500', valueColor: 'text-amber-700' },
                                       { label: '及格率', value: `${cls.pass_rate}%`, icon: TrendingUp, bg: 'from-emerald-50 to-emerald-100/40', iconColor: 'text-emerald-500', valueColor: 'text-emerald-700' },
                                       { label: '完成率', value: `${cls.completion_rate}%`, icon: CheckCircle2, bg: 'from-violet-50 to-violet-100/40', iconColor: 'text-violet-500', valueColor: 'text-violet-700' },
                                     ].map((kpi) => (
